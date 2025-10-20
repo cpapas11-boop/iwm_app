@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+	--bg: #f8fafc;
+	--card: #ffffff;
+	--muted: #6b7280;
+}
+
+html,body,#root{height:100%}
+body{@apply antialiased bg-[color:var(--bg)] text-gray-900 font-sans}
+
+.app-shell{@apply max-w-6xl mx-auto p-6}
+.card{@apply bg-white rounded-lg shadow-sm border border-gray-100}
+.btn-primary{@apply bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700}
+.btn-ghost{@apply bg-gray-50 text-gray-700 px-2 py-1 rounded-md}
+
+.modal-backdrop{@apply fixed inset-0 bg-black/40 flex items-center justify-center z-50}
+.modal{@apply bg-white rounded shadow-lg p-4 w-full max-w-3xl}
+
+.table{@apply w-full border-collapse text-sm}

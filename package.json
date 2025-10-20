@@ -1,0 +1,27 @@
+{
+  "name": "waste-management-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "postinstall": "tailwindcss -i ./src/index.css -o ./dist/output.css --minify"
+  },
+  "dependencies": {
+    "jspdf": "^2.5.1",
+    "lucide-react": "^0.269.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+  "tailwindcss": "^3.4.7",
+  "postcss": "^8.4.21",
+  "autoprefixer": "^10.4.13",
+    "@types/react": "^18.2.27",
+    "@types/react-dom": "^18.2.10",
+    "typescript": "^5.5.6",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.0.0"
+  }
+}
