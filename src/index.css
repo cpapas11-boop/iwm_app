@@ -11,6 +11,23 @@
 html,body,#root{height:100%}
 body{@apply antialiased bg-[color:var(--bg)] text-gray-900 font-sans}
 
+/* Smoothness and mobile polish */
+*{-webkit-tap-highlight-color: transparent}
+html{scroll-behavior:smooth}
+body{overscroll-behavior-y:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background-color:#e5e7eb;border-radius:9999px}
+
+/* Respect safe areas on iOS */
+.safe-bottom{padding-bottom:env(safe-area-inset-bottom)}
+.safe-top{padding-top:env(safe-area-inset-top)}
+
+/* Motion defaults */
+.animate-in{animation:fade-in .18s ease-out both}
+.animate-scale{animation:scale-in .18s ease-out both}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes scale-in{from{opacity:0;transform:scale(.98)}to{opacity:1;transform:scale(1)}}
+
 .app-shell{@apply max-w-6xl mx-auto p-6}
 .card{@apply bg-white rounded-lg shadow-sm border border-gray-100}
 .btn-primary{@apply bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700}
@@ -18,5 +35,12 @@ body{@apply antialiased bg-[color:var(--bg)] text-gray-900 font-sans}
 
 .modal-backdrop{@apply fixed inset-0 bg-black/40 flex items-center justify-center z-50}
 .modal{@apply bg-white rounded shadow-lg p-4 w-full max-w-3xl}
+
+/* Mobile specific helpers */
+.mobile-header{@apply sticky top-0 z-20 backdrop-blur bg-white/70 border-b}
+.mobile-card{@apply bg-white rounded-xl border border-gray-100 shadow-sm}
+.mobile-pressable{@apply active:scale-[0.99] transition-transform}
+.mobile-nav{@apply bg-white/90 backdrop-blur border-t}
+.fab-shadow{box-shadow:0 10px 25px rgba(16,24,40,.18)}
 
 .table{@apply w-full border-collapse text-sm}

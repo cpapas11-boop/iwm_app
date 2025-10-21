@@ -1,6 +1,15 @@
 import React, { useMemo, useState } from 'react';
+// Lightweight switches to move between prior code states without git
+const CONFIG = {
+  // true: in-app overlay inside mobile frame; false: use global modal for PDF preview
+  PDF_OVERLAY_IN_APP: true,
+  // mobile bottom button label (older variant used "Μετακινήσεις")
+  MOBILE_LABEL: 'Μεταφορές',
+  // show temporary dev banner used during HMR tests
+  SHOW_DEV_BANNER: false,
+};
 import jsPDF from 'jspdf';
-import { Bell, Inbox, Truck, Factory, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { Bell, Inbox, Truck, Factory, FileText, CheckCircle2, Clock, Menu, Filter } from 'lucide-react';
 
 /******** helpers ********/
 const gid = () => Math.random().toString(36).slice(2, 9);
@@ -88,35 +97,74 @@ const applyTransportFilter = (transports: any[] = [], projects: any[] = [], filt
 const pdfTransfer = (t: any) => {
   const d = new jsPDF();
   d.setFontSize(14);
-  d.text('ΕΝΤΥΠΟ ΠΑΡΑΚΟΛΟΥΘΗΣΗΣ ΜΕΤΑΦΟΡΑΣ', 14, 18);
+  d.text('TRANSPORT MONITORING FORM', 14, 18);
   d.setFontSize(11);
-  d.text(`Παραγωγός: ${t.producer || '-'}`, 14, 32);
-  d.text(`Έργο: ${t.project || '-'}`, 14, 40);
-  d.text(`Διεύθυνση: ${t.address || '-'}`, 14, 48);
-  d.text(`Μονάδα: ${t.unit || '-'}`, 14, 56);
-  d.text(`Ημ/νία: ${t.date || '-'}`, 14, 64);
-  d.text(`Όχημα: ${t.vehicle || '-'}`, 14, 72);
-  if (t.approvedByProducer) d.text('✔ Παραδόθηκε στον Μεταφορέα', 14, 82);
+  d.text(`Producer: ${t.producer || '-'}`, 14, 32);
+  d.text(`Project: ${t.project || '-'}`, 14, 40);
+  d.text(`Address: ${t.address || '-'}`, 14, 48);
+  d.text(`Unit: ${t.unit || '-'}`, 14, 56);
+  d.text(`Date: ${t.date || '-'}`, 14, 64);
+  d.text(`Vehicle: ${t.vehicle || '-'}`, 14, 72);
+  if (t.approvedByProducer) d.text('✔ Handed to Transporter', 14, 82);
   if (t.receivedByUnit) {
-    d.text('✔ Παραδόθηκε στη Μονάδα', 14, 90);
-    d.text(`Ημ/νία παραλαβής: ${t.unitDate || '-'}`, 14, 98);
-    d.text(`Βάρος: ${t.weight || '-'} tn`, 14, 106);
-    d.text(`ΕΚΑ: ${t.ekaCategory || '-'}`, 14, 114);
+    d.text('✔ Delivered to Unit', 14, 90);
+    d.text(`Receiving date: ${t.unitDate || '-'}`, 14, 98);
+    d.text(`Weight: ${t.weight || '-'} tn`, 14, 106);
+    d.text(`EKA: ${t.ekaCategory || '-'}`, 14, 114);
   }
   d.save(`transfer_${(t.project || 'project').replace(/\s+/g, '_')}.pdf`);
+};
+
+// return PDF as data URL (embed signatures if present)
+const pdfTransferDataUrl = (t: any) => {
+  const d = new jsPDF();
+  d.setFontSize(14);
+  d.text('TRANSPORT MONITORING FORM', 14, 18);
+  d.setFontSize(11);
+  d.text(`Producer: ${t.producer || '-'}`, 14, 32);
+  d.text(`Project: ${t.project || '-'}`, 14, 40);
+  d.text(`Address: ${t.address || '-'}`, 14, 48);
+  d.text(`Unit: ${t.unit || '-'}`, 14, 56);
+  d.text(`Date: ${t.date || '-'}`, 14, 64);
+  d.text(`Vehicle: ${t.vehicle || '-'}`, 14, 72);
+  if (t.approvedByProducer) d.text('✔ Handed to Transporter', 14, 82);
+  if (t.receivedByUnit) {
+    d.text('✔ Delivered to Unit', 14, 90);
+    d.text(`Receiving date: ${t.unitDate || '-'}`, 14, 98);
+    d.text(`Weight: ${t.weight || '-'} tn`, 14, 106);
+    d.text(`EKA: ${t.ekaCategory || '-'}`, 14, 114);
+  }
+  // embed signatures if present (approx positions)
+  try {
+    if (t.producerSignature) {
+      d.text('Producer signature:', 14, 130);
+      d.addImage(t.producerSignature, 'PNG', 14, 134, 60, 30);
+    }
+  } catch (e) {
+    // ignore image errors
+  }
+  try {
+    if (t.transporterSignature) {
+      d.text('Transporter signature:', 90, 130);
+      d.addImage(t.transporterSignature, 'PNG', 90, 134, 60, 30);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return d.output('datauristring');
 };
 
 const pdfAgreement = (p: any) => {
   const d = new jsPDF();
   d.setFontSize(14);
-  d.text('ΣΥΜΦΩΝΙΑ ΑΝΑΚΥΚΛΩΣΗΣ ΑΕΚΚ', 14, 18);
+  d.text('RECOVERY AGREEMENT - C&D WASTE', 14, 18);
   d.setFontSize(11);
-  d.text(`Παραγωγός: ${p.producer}`, 14, 32);
-  d.text(`Έργο: ${p.projectName}`, 14, 40);
-  d.text(`Διεύθυνση: ${p.address}`, 14, 48);
-  d.text(`Μονάδα: ${p.unit}`, 14, 56);
-  d.text(`Αρ. Συμφωνίας: ${p.agreement}`, 14, 64);
-  d.text(`Ημ/νία: ${fmt(p.agreementDate)}`, 14, 72);
+  d.text(`Producer: ${p.producer}`, 14, 32);
+  d.text(`Project: ${p.projectName}`, 14, 40);
+  d.text(`Address: ${p.address}`, 14, 48);
+  d.text(`Unit: ${p.unit}`, 14, 56);
+  d.text(`Agreement #: ${p.agreement}`, 14, 64);
+  d.text(`Date: ${fmt(p.agreementDate)}`, 14, 72);
   d.save(`agreement_${(p.projectName || 'project').replace(/\s+/g, '_')}.pdf`);
 };
 
@@ -136,7 +184,7 @@ const Badge = ({ tone = 'gray', children }: any) => {
   const m: any = {
     gray: 'bg-gray-100 text-gray-700 border-gray-200',
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
+  green: 'bg-green-100 text-green-800 border-green-200',
     orange: 'bg-orange-50 text-orange-700 border-orange-200',
     red: 'bg-red-50 text-red-700 border-red-200',
   };
@@ -146,6 +194,37 @@ const Badge = ({ tone = 'gray', children }: any) => {
     </span>
   );
 };
+
+// clickable badge (supports tone similar to Badge)
+const ClickBadge = ({ tone = 'gray', children, onClick, className = '' }: any) => {
+  const base = 'inline-flex items-center gap-1 px-2 py-[2px] rounded-full text-xs border cursor-pointer ';
+  const m: any = {
+    gray: 'bg-gray-50 text-gray-700 border-gray-200',
+    blue: 'bg-blue-50 text-blue-700 border-blue-200',
+    green: 'bg-green-100 text-green-800 border-green-200',
+    orange: 'bg-orange-50 text-orange-700 border-orange-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  };
+  return (
+    <button onClick={onClick} className={`${base} ${m[tone] || m.gray} ${className}`}>
+      {children}
+    </button>
+  );
+};
+
+// deterministic color based on producer name
+const avatarColor = (s: string) => {
+  const colors = ['bg-blue-50 text-blue-600','bg-green-50 text-green-600','bg-orange-50 text-orange-600','bg-purple-50 text-purple-600','bg-teal-50 text-teal-600'];
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i);
+  return colors[Math.abs(h) % colors.length];
+};
+
+// small truck animation style (inline)
+const TruckCSS = () => (
+  <style>{`@keyframes truck-move { 0% { transform: translateX(-2px); } 50% { transform: translateX(2px); } 100% { transform: translateX(-2px); } } .truck-anim { display:inline-block; animation: truck-move 1.2s linear infinite; }`}</style>
+);
 
 const TabBar = ({ tabs, active, onChange }: any) => {
   const T = A(tabs);
@@ -169,8 +248,8 @@ const TabBar = ({ tabs, active, onChange }: any) => {
 };
 
 const Modal = ({ title, children, onClose, onSubmit, submitLabel = 'Καταχώρηση' }: any) => (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-    <div className="bg-white rounded shadow-lg p-4 w-full max-w-3xl">
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-in">
+    <div className="bg-white rounded shadow-lg p-4 w-full max-w-3xl animate-scale">
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-lg font-semibold">{title}</h2>
         <Btn className="bg-gray-100" onClick={onClose}>✕</Btn>
@@ -187,22 +266,131 @@ const Modal = ({ title, children, onClose, onSubmit, submitLabel = 'Καταχώ
   </div>
 );
 
+// small accessible snackbar
+const Snackbar = ({ open, message, onClose }: any) => {
+  if (!open) return null;
+  return (
+    <div role="status" aria-live="polite" className="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 bg-gray-900 text-white px-4 py-2 rounded shadow">
+      <div className="flex items-center gap-3">
+        <div className="text-sm">{message}</div>
+        <button aria-label="Close" onClick={onClose} className="text-xs bg-white/10 px-2 py-1 rounded">Close</button>
+      </div>
+    </div>
+  );
+};
+
+// Simple signature pad using native canvas. Returns dataURL via onChange.
+const SignaturePad = ({ value, onChange, ariaLabel, className = '' }: any) => {
+  const ref = React.useRef<HTMLCanvasElement | null>(null);
+  const drawing = React.useRef(false);
+
+  React.useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    if (value) {
+      const img = new Image(); img.src = value; img.onload = () => ctx.drawImage(img, 0, 0);
+    }
+  }, [value]);
+
+  const start = (e: any) => { drawing.current = true; draw(e); };
+  const end = () => { drawing.current = false; if (!ref.current) return; onChange(ref.current.toDataURL()); };
+  const draw = (e: any) => {
+    if (!drawing.current || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    const ctx = ref.current.getContext('2d');
+    if (!ctx) return;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 0.1, y + 0.1); ctx.stroke();
+  };
+
+  const clear = () => { if (!ref.current) return; const ctx = ref.current.getContext('2d'); if (!ctx) return; ctx.clearRect(0,0,ref.current.width, ref.current.height); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,ref.current.width, ref.current.height); onChange(''); };
+
+  return (
+    <div>
+      <canvas
+        ref={ref}
+        width={500}
+        height={160}
+        aria-label={ariaLabel || 'signature-pad'}
+        className={`border w-full bg-white touch-none ${className}`}
+        onMouseDown={start}
+        onMouseMove={draw}
+        onMouseUp={end}
+        onTouchStart={start}
+        onTouchMove={draw}
+        onTouchEnd={end}
+      />
+      <div className="flex gap-2 mt-2">
+        <Btn className="bg-gray-100" onClick={clear}>Καθαρισμός</Btn>
+      </div>
+    </div>
+  );
+};
+
 const FilterBar = ({ producers = [], projects = [], value, onChange, showProject = true, showProducer = true }: any) => (
-  <div className="flex gap-2 items-center mb-3">
-    {showProducer && (
-      <select className="border p-1" value={value.producer || ''} onChange={(e: any) => onChange({ ...value, producer: e.target.value, project: '' })}>
-        <option value="">— Όλοι οι Παραγωγοί —</option>
-        {producers.map((p: string) => (<option key={p} value={p}>{p}</option>))}
-      </select>
-    )}
-    {showProject && (
-      <select className="border p-1" value={value.project || ''} onChange={(e: any) => onChange({ ...value, project: e.target.value })}>
-        <option value="">— Όλα τα Έργα —</option>
-        {projects.map((p: any) => (<option key={p.id} value={p.id}>{p.projectName}</option>))}
-      </select>
-    )}
-    <label className="text-sm">Από <input type="date" className="border p-1 ml-1" value={value.from || ''} onChange={(e: any) => onChange({ ...value, from: e.target.value })} /></label>
-    <label className="text-sm">Έως <input type="date" className="border p-1 ml-1" value={value.to || ''} onChange={(e: any) => onChange({ ...value, to: e.target.value })} /></label>
+  <div className="mb-3">
+    <div className="bg-white/90 backdrop-blur border border-gray-200 rounded-xl p-3 shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+        {showProducer && (
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Παραγωγός</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={value.producer || ''}
+              onChange={(e: any) => onChange({ ...value, producer: e.target.value, project: '' })}
+            >
+              <option value="">— Όλοι οι Παραγωγοί —</option>
+              {producers.map((p: string) => (<option key={p} value={p}>{p}</option>))}
+            </select>
+          </div>
+        )}
+        {showProject && (
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Έργο</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={value.project || ''}
+              onChange={(e: any) => onChange({ ...value, project: e.target.value })}
+            >
+              <option value="">— Όλα τα Έργα —</option>
+              {projects.map((p: any) => (<option key={p.id} value={p.id}>{p.projectName}</option>))}
+            </select>
+          </div>
+        )}
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Από</label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={value.from || ''}
+            onChange={(e: any) => onChange({ ...value, from: e.target.value })}
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-xs text-gray-500 mb-1">Έως</label>
+          <input
+            type="date"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={value.to || ''}
+            onChange={(e: any) => onChange({ ...value, to: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="mt-2 flex justify-end gap-2">
+        <button
+          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+          onClick={() => onChange({ producer: '', project: '', from: '', to: '' })}
+        >
+          Επαναφορά
+        </button>
+      </div>
+    </div>
   </div>
 );
 
@@ -511,6 +699,9 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
   const completed = filteredTransports.filter((t: any) => t.receivedByUnit);
 
   const [showNew, setShowNew] = useState(false);
+  const [newTransferOpen, setNewTransferOpen] = useState(false);
+  const [ntProjectId, setNtProjectId] = useState('');
+  const [ntForm, setNtForm] = useState({ address: '', transporter: '', unit: '', vehicle: '' });
   const [pForm, setPForm] = useState(() => ({
     projectName: '', address: '', start: today(), end: today(), unit: UNITS[0], transporter: TRANSPORTERS[0],
     managerName: '', managerPhone: '', managerEmail: '',
@@ -735,7 +926,10 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
 
       {tab === 'projects' && (
         <>
-          <div className="flex justify-end mb-2"><Btn className="bg-green-600 text-white" onClick={() => setShowNew(true)}>+ Νέο Έργο</Btn></div>
+          <div className="flex justify-end mb-2">
+            <Btn className="bg-green-600 text-white" onClick={() => setShowNew(true)}>+ Νέο Έργο</Btn>
+            <Btn className="bg-blue-600 text-white ml-2" onClick={() => setNewTransferOpen(true)}>Νέα Μεταφορά</Btn>
+          </div>
           <table className="w-full border bg-white">
             <thead className="bg-gray-100 text-sm">
               <tr>
@@ -827,6 +1021,43 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
               </div>
             </Modal>
           )}
+
+          {newTransferOpen && (
+            <Modal title="Νέα Μεταφορά" onClose={() => setNewTransferOpen(false)} onSubmit={() => {
+              const proj = A(projects).find((p: any) => p.id === ntProjectId);
+              if (proj) {
+                // create the request using existing handler which will fill fields from project
+                onRequestTransfer(proj);
+                setNewTransferOpen(false);
+                setNtProjectId('');
+                setNtForm({ address: '', transporter: '', unit: '', vehicle: '' });
+              }
+            }} submitLabel="Αίτημα">
+              <div className="text-sm mb-2">Επιλέξτε έργο. Τα υπόλοιπα στοιχεία θα συμπληρωθούν αυτόματα.</div>
+              <label className="block mb-2">Έργο
+                <select className="border p-1 w-full" value={ntProjectId} onChange={(e: any) => {
+                  const id = e.target.value; setNtProjectId(id);
+                  const pr = A(projects).find((p: any) => p.id === id);
+                  if (pr) setNtForm({ address: pr.address || '', transporter: pr.transporter || '', unit: pr.unit || '', vehicle: '' });
+                }}>
+                  <option value="">— Επιλογή Έργου —</option>
+                  {projectsByProducer(projects, myProducer).map((p: any) => (<option key={p.id} value={p.id}>{p.projectName} — {p.address}</option>))}
+                </select>
+              </label>
+              <label className="block mb-2">Διεύθυνση
+                <input className="border p-1 w-full" value={ntForm.address} readOnly />
+              </label>
+              <label className="block mb-2">Μεταφορέας
+                <input className="border p-1 w-full" value={ntForm.transporter} readOnly />
+              </label>
+              <label className="block mb-2">Μονάδα
+                <input className="border p-1 w-full" value={ntForm.unit} readOnly />
+              </label>
+              <label className="block">Σχόλια / Όχημα (προαιρετικό)
+                <input className="border p-1 w-full" value={ntForm.vehicle} onChange={(e: any) => setNtForm({ ...ntForm, vehicle: e.target.value })} />
+              </label>
+            </Modal>
+          )}
         </>
       )}
 
@@ -837,7 +1068,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
 
 /******** transporter (web) ********/
 const Transporter = ({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, addNotif, deepLink }: any) => {
-  const [tab, setTab] = useState('aitimata');
+  const [tab, setTab] = useState('transfers');
   const [show, setShow] = useState(false);
   const opts = useMemo(() => plates(), []);
   const [form, setForm] = useState({ producer: '', project: '', address: '', unit: '', vehicle: '', date: today(), time: '08:00', viaStation: false });
@@ -855,7 +1086,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
 
   const producerReq = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && t.fromProducer);
   const carrierReq = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && !t.fromProducer);
-  const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit);
+  const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
 
   const tabs = [
     { key: 'aitimata', label: 'Αιτήματα', count: producerReq.length + carrierReq.length },
@@ -1165,9 +1396,8 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                       <Btn className="bg-red-600 text-white" onClick={() => onRejectAgreement(p.id)}>Απόρριψη</Btn>
                     </div>
                   ) : (
-                    <div className="flex gap-2 items-center justify-center">
-                      <span className="text-blue-700 font-semibold">{p.agreement}</span>
-                      <Btn className="bg-gray-100" onClick={() => pdfAgreement(p)}>PDF</Btn>
+                    <div className="flex items-center justify-center">
+                      <span className="text-blue-700 font-semibold underline cursor-pointer" onClick={() => pdfAgreement(p)}>{p.agreement}</span>
                     </div>
                   )}
                 </td>
@@ -1179,11 +1409,12 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
 
       {tab === 'transfers' && (
         <div className="bg-white border rounded p-3">
-          <div className="font-semibold mb-2">Εκκρεμή Μεταφορές</div>
+          <div className="font-semibold mb-2">Ανοιχτές Μεταφορές</div>
           <table className="w-full border text-sm mb-6">
             <thead className="bg-gray-100">
               <tr>
                 <th className="border px-2">Α/Α</th>
+                <th className="border px-2">Λογότυπο</th>
                 <th className="border px-2">Παραγωγός</th>
                 <th className="border px-2">Έργο</th>
                 <th className="border px-2">Διεύθυνση</th>
@@ -1192,15 +1423,18 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
               </tr>
             </thead>
             <tbody>
-              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit).length === 0 ? (
+              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).length === 0 ? (
                 <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
               ) : (
-                applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit).map((t: any, i: number) => {
+                applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).map((t: any, i: number) => {
                   const prj = A(projects).find((p: any) => p.id === t.projectId);
                   return (
                     <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
                       <td className="border text-center">{i + 1}</td>
-                      <td className="border text-center">{t.producer}</td>
+                      <td className="border text-center">{t.logo ? <img src={t.logo} alt={t.producer} className="w-8 h-8 rounded-full mx-auto" /> : <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mx-auto">{(t.producer || '').split(' ').map((s: string) => s[0]).slice(0,2).join('')}</div>}</td>
+                      <td className="border text-center">
+                        <div className="font-semibold">{t.producer}</div>
+                      </td>
                       <td className="border text-center">{t.project}</td>
                       <td className="border text-center">{t.address}</td>
                       <td className="border text-center">{(prj && prj.agreement) || '—'}</td>
@@ -1208,6 +1442,36 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                     </tr>
                   );
                 })
+              )}
+            </tbody>
+          </table>
+
+          <div className="font-semibold mb-2">Εκκρεμή για υπογραφή παραλαβής</div>
+          <table className="w-full border text-sm mb-6">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border px-2">Α/Α</th>
+                <th className="border px-2">Παραγωγός</th>
+                <th className="border px-2">Έργο</th>
+                <th className="border px-2">Διεύθυνση</th>
+                <th className="border px-2">Ημ/νία Παράδοσης</th>
+                <th className="border px-2">Κατάσταση</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit).length === 0 ? (
+                <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
+              ) : (
+                applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit).map((t: any, i: number) => (
+                  <tr key={t.id} className={t.isNew ? 'bg-yellow-50' : ''}>
+                    <td className="border text-center">{i + 1}</td>
+                    <td className="border text-center">{t.producer}</td>
+                    <td className="border text-center">{t.project}</td>
+                    <td className="border text-center">{t.address}</td>
+                    <td className="border text-center">{fmt(t.unitDate)}</td>
+                    <td className="border text-center text-blue-700">{t.status || 'Αναμονή υπογραφής'}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -1279,7 +1543,7 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
 };
 
 /******** mobile ********/
-function EcoMobileFrame({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, addNotif }: any) {
+function EcoMobileFrame({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, addNotif, onFinalizeDelivery }: any) {
   return (
     <div className="flex justify-center items-center min-h-[700px] bg-gray-200 rounded-lg">
       <div className="relative bg-black p-4 rounded-[3rem] w-[380px] h-[780px] shadow-2xl border-[8px] border-gray-900">
@@ -1293,6 +1557,7 @@ function EcoMobileFrame({ projects, transports, onAddTransport, notifications, o
             onJump={onJump}
             onAcceptRequest={onAcceptRequest}
             addNotif={addNotif}
+            onFinalizeDelivery={onFinalizeDelivery}
           />
         </div>
       </div>
@@ -1300,96 +1565,281 @@ function EcoMobileFrame({ projects, transports, onAddTransport, notifications, o
   );
 }
 
-function EcoApp({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, addNotif }: any) {
+function EcoApp({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, addNotif, onFinalizeDelivery }: any) {
   // accept deepLink prop if passed via wrapper
   const deepLink = (arguments[0] as any).deepLink;
-  const [tab, setTab] = useState('aitimata');
+  const [tab, setTab] = useState('transfers');
   const [show, setShow] = useState(false);
   const [producer, setProducer] = useState('');
   const [project, setProject] = useState('');
   const [unit, setUnit] = useState('');
   const [vehicle, setVehicle] = useState('');
   const [time, setTime] = useState('08:00');
+  const [mDate, setMDate] = useState(today());
+  const [mAddress, setMAddress] = useState('');
+  const [mManagerName, setMManagerName] = useState('');
+  const [mManagerPhone, setMManagerPhone] = useState('');
+  const [showNoSignInfo, setShowNoSignInfo] = useState(false);
+  const infoRef = React.useRef<any>(null);
+  const [tooltipAbove, setTooltipAbove] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  React.useEffect(() => {
+    if (!showNoSignInfo) return;
+    // decide whether to show tooltip above or below based on space
+    try {
+      const el = infoRef.current as HTMLElement | null;
+      if (!el) return setTooltipAbove(false);
+      const rect = el.getBoundingClientRect();
+      // if distance from top is larger than 160px, show above, else below
+      setTooltipAbove(rect.top > 160);
+    } catch (e) {
+      setTooltipAbove(false);
+    }
+  }, [showNoSignInfo]);
 
   const VEH = ['ΚΥΧ1234', 'ΑΑΖ5678', 'ΒΒΚ4321', 'ΝΟΠ9988'];
   const req = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit);
-  const open = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit);
+  const producerReq = req.filter((t: any) => t.fromProducer);
+  const carrierReq = req.filter((t: any) => !t.fromProducer);
+  const open = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
+  const delivery = A(transports).filter((t: any) => !!t.deliveredToUnit && !t.receivedByUnit);
   const done = A(transports).filter((t: any) => t.receivedByUnit);
+  const [mobileSignModal, setMobileSignModal] = useState<any>({ open: false, row: null, vehicle: '', date: today(), time: '08:00', producerSignature: '', transporterSignature: '', step: 1 });
+  const [pdfPreview, setPdfPreview] = useState<string | null>(null);
+  const [deliverySignModal, setDeliverySignModal] = useState<any>({ open: false, row: null, unitSignature: '' });
 
   const handleNew = () => {
     if (!producer || !project || !unit || !vehicle) return;
     const pr = A(projects).find((p: any) => p.producer === producer && p.projectName === project);
-    onAddTransport({ id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: today(), time, status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true });
+    onAddTransport({ id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true });
     addNotif && addNotif('Νέο Αίτημα Μεταφοράς (Μεταφορέα)', `${producer} / ${project}`, { page: 'producer', tab: 'aitimata' });
-    setShow(false); setProducer(''); setProject(''); setUnit(''); setVehicle('');
+    // After creating via 'Αίτημα', navigate to Requests tab
+    setTab('requests');
+    setShow(false); setProducer(''); setProject(''); setUnit(''); setVehicle(''); setMDate(today()); setMAddress(''); setMManagerName(''); setMManagerPhone('');
+  };
+
+  const handleNewWithSign = () => {
+    if (!producer || !project || !unit || !vehicle) return;
+    const pr = A(projects).find((p: any) => p.producer === producer && p.projectName === project);
+    const t = { id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true };
+    onAddTransport(t);
+    addNotif && addNotif('Νέο Αίτημα Μεταφοράς (Μεταφορέα)', `${producer} / ${project}`, { page: 'producer', tab: 'aitimata' });
+  // switch to Transfers tab (open) on mobile so user sees the created transport
+  setTab('transfers');
+    // open signature page (step 2) for the newly created request
+    setShow(false); setProducer(''); setProject(''); setUnit(''); setVehicle(''); setMDate(today()); setMAddress(''); setMManagerName(''); setMManagerPhone('');
+    setMobileSignModal({ open: true, row: t, vehicle: t.vehicle || VEH[0], date: t.date, time: t.time, step: 2, producerSignature: '', transporterSignature: '', projectInfo: pr });
   };
 
   return (
+    <>
     <div className="flex flex-col h-full bg-gray-50 relative">
-      <div className="flex items-center justify-between p-2 border-b">
-  <div className="font-semibold">Eco Mobile</div>
-        <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'transporter')} onJump={onJump} />
+      {/* Mobile header */}
+      <div className="mobile-header safe-top px-4 py-3">
+        <div className="relative flex items-center">
+          <div className="absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-wide">IWM</div>
+          <div className="ml-auto relative">
+            <button
+              aria-label="Μενού"
+              className="p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              onClick={() => setMenuOpen(v => !v)}
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow z-50 py-1">
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => setMenuOpen(false)}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => setMenuOpen(false)}>Ρυθμίσεις</button>
+                <div className="my-1 border-t" />
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setTab('transfers'); setMenuOpen(false); }}>Μεταφορές</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setTab('requests'); setMenuOpen(false); }}>Αιτήματα</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+      {menuOpen && (
+        <div className="absolute inset-0 z-40" onClick={() => setMenuOpen(false)} />
+      )}
+
+      {/* toast */}
+      {showToast && (
+        <div className="absolute top-12 right-4 z-50 bg-black text-white text-sm px-3 py-2 rounded shadow">Νέα μεταφορά καταχωρήθηκε</div>
+      )}
 
       <div className="flex-1 overflow-auto">
-        {tab === 'aitimata' && !show && (
-          <div className="p-3 space-y-2">
-            {req.length === 0 ? (
-              <div className="flex items-center justify-center h-64 text-gray-400">Δεν υπάρχουν αιτήματα</div>
-            ) : (
-              req.map((r: any) => (
-                <div key={r.id} className="bg-white border rounded-lg p-3">
-                  <div className="font-semibold text-sm">{r.producer} — {r.project}</div>
-                  <div className="text-xs text-gray-500">{fmt(r.date)} → {r.unit}</div>
-                  <div className="mt-1 flex justify-between items-center">
-                    <Badge tone={r.fromProducer ? 'orange' : 'gray'}>
-                      {r.fromProducer ? (<Clock className="w-3 h-3" />) : (<FileText className="w-3 h-3" />)}
-                      {r.fromProducer ? 'Αναμονή αποδοχής' : 'Υποβλήθηκε από μεταφορέα'}
-                    </Badge>
-                    {r.fromProducer && (
-                      <Btn className="bg-green-600 text-white" onClick={() => onAcceptRequest(r, { vehicle: VEH[0], date: r.date, time: '08:00' })}>Αποδοχή</Btn>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-            <div className="pt-3"><Btn className="bg-blue-600 text-white w-full" onClick={() => setShow(true)}>+ Νέα Μεταφορά</Btn></div>
-          </div>
-        )}
+        {/* Mobile app: only Transfers page is shown in this mode */}
 
         {show && (
-          <div className="p-4 space-y-3">
-            <h2 className="text-lg font-bold">Νέα Μεταφορά</h2>
+          <div className="p-4 space-y-3 animate-in">
+            <div className="flex items-center justify-between mb-2">
+              <button className="text-blue-700" onClick={() => setShow(false)}>‹ Πίσω</button>
+              <div className="font-semibold">Νέα Μεταφορά</div>
+              <div style={{ width: 40 }} />
+            </div>
             <select value={producer} onChange={(e: any) => { setProducer(e.target.value); setProject(''); setUnit(''); }} className="border p-1 w-full rounded">
               <option value="">Επιλογή Παραγωγού</option>
               {[...new Set(A(projects).map((p: any) => p.producer))].map((p: string) => (<option key={p} value={p}>{p}</option>))}
             </select>
-            <select value={project} onChange={(e: any) => { setProject(e.target.value); const u = A(projects).find((x: any) => x.producer === producer && x.projectName === e.target.value)?.unit; setUnit(u || ''); }} className="border p-1 w-full rounded">
+            <select value={project} onChange={(e: any) => {
+              const val = e.target.value;
+              setProject(val);
+              const pr = A(projects).find((x: any) => x.producer === producer && x.projectName === val);
+              const u = pr?.unit;
+              setUnit(u || '');
+              setMAddress(pr?.address || '');
+              setMManagerName(pr?.managerName || '');
+              setMManagerPhone(pr?.managerPhone || '');
+            }} className="border p-1 w-full rounded">
               <option value="">Επιλογή Έργου</option>
               {A(projects).filter((p: any) => p.producer === producer).map((pr: any) => (<option key={pr.id} value={pr.projectName}>{pr.projectName}</option>))}
             </select>
+            <input value={mAddress} readOnly placeholder="Διεύθυνση" className="border p-1 w-full rounded bg-gray-100" />
             <input value={unit} readOnly placeholder="Μονάδα" className="border p-1 w-full rounded bg-gray-100" />
+            <input value={mManagerName} readOnly placeholder="Υπεύθυνος" className="border p-1 w-full rounded bg-gray-100" />
+            <input value={mManagerPhone} readOnly placeholder="Τηλέφωνο" className="border p-1 w-full rounded bg-gray-100" />
             <select value={vehicle} onChange={(e: any) => setVehicle(e.target.value)} className="border p-1 w-full rounded">
               <option value="">Επιλογή Οχήματος</option>
               {['ΚΥΧ1234', 'ΑΑΖ5678', 'ΒΒΚ4321', 'ΝΟΠ9988'].map((v: string) => (<option key={v} value={v}>{v}</option>))}
             </select>
-            <input type="time" value={time} onChange={(e: any) => setTime(e.target.value)} className="border p-1 w-full rounded" />
-            <div className="flex gap-2">
-              <button onClick={handleNew} className="bg-green-600 text-white px-3 py-2 rounded text-sm">Καταχώρηση</button>
-              <button onClick={() => setShow(false)} className="bg-gray-400 text-white px-3 py-2 rounded text-sm">Άκυρο</button>
+            <input type="date" value={mDate} readOnly className="border p-1 w-full rounded bg-gray-100" />
+            <input type="time" value={time} readOnly className="border p-1 w-full rounded bg-gray-100" />
+            <div className="flex gap-2 items-center">
+              <div className="flex-1 relative">
+                <button onClick={() => { handleNew(); setShowToast(true); setTimeout(() => setShowToast(false), 1800); }} className="w-full bg-gray-200 text-gray-800 px-3 py-2 rounded text-sm text-left">Αίτημα</button>
+                <button ref={infoRef} title="Περισσότερα" className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-yellow-100 border text-yellow-700 flex items-center justify-center text-xs" onClick={() => setShowNoSignInfo((s: any) => !s)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 18h.01" /></svg>
+                </button>
+                {showNoSignInfo && (
+                  <div className={"absolute left-0 w-64 bg-white border rounded p-2 text-sm shadow animate-in " + (tooltipAbove ? ' -bottom-28' : ' mt-12')} style={tooltipAbove ? { bottom: '3.5rem' } : {}}>
+                    <div className="mb-2">(Σε περίπτωση που γινει αποδεκτο το έντυπο μόνο με αποδοχη εντός της πλατφορμας)</div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { handleNew(); setShowNoSignInfo(false); }} className="flex-1 bg-gray-200 text-gray-800 px-2 py-1 rounded text-sm">Καταχώρηση</button>
+                      <button onClick={() => setShowNoSignInfo(false)} className="flex-1 bg-white border text-gray-700 px-2 py-1 rounded text-sm">Άκυρο</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="w-36">
+                <button onClick={handleNewWithSign} className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm">Υπογραφή</button>
+              </div>
             </div>
           </div>
         )}
 
-        {tab === 'transfers' && (
-          <MobileTransfers open={open} done={done} />
+        {mobileSignModal.open && (
+          <div className="absolute inset-0 bg-white z-40 overflow-auto p-4 flex flex-col">
+            {/* Header with Back */}
+            <div className="flex items-center justify-between mb-3">
+              <button className="text-blue-700" onClick={() => {
+                if (mobileSignModal.step === 1) return setMobileSignModal({ open: false, row: null, vehicle: '', date: today(), time: '08:00', step: 1, producerSignature: '', transporterSignature: '', projectInfo: null });
+                setMobileSignModal((m: any) => ({ ...m, step: 1 }));
+              }}>‹ Πίσω</button>
+              <div className="font-semibold">{mobileSignModal.step === 1 ? 'Αποδοχή Αιτήματος Παραγωγού' : 'Υπογραφές Αποδοχής'}</div>
+              <div style={{ width: 48 }} />
+            </div>
+
+            {mobileSignModal.step === 1 ? (
+              <div className="flex-1">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="col-span-2 font-semibold">Στοιχεία έργου</div>
+                  <div>Παραγωγός: <span className="font-semibold">{mobileSignModal.row?.producer}</span></div>
+                  <div>Έργο: <span className="font-semibold">{mobileSignModal.row?.project}</span></div>
+                  <div className="col-span-2">Διεύθυνση: <span className="font-semibold">{mobileSignModal.row?.address}</span></div>
+                  <div>Μονάδα: <span className="font-semibold">{mobileSignModal.row?.unit}</span></div>
+                  <div>Υπεύθυνος: <span className="font-semibold">{mobileSignModal.projectInfo?.managerName || '-'}</span></div>
+                  <div>Τηλέφωνο: <span className="font-semibold">{mobileSignModal.projectInfo?.managerPhone || '-'}</span></div>
+                  <div className="col-span-2 border-t pt-2 font-semibold">Προγραμματισμός</div>
+                  <label>Ημ/νία
+                    <input type="date" className="border p-1 w-full bg-gray-100" value={mobileSignModal.date} readOnly />
+                  </label>
+                  <label>Ώρα
+                    <input type="time" className="border p-1 w-full bg-gray-100" value={mobileSignModal.time} readOnly />
+                  </label>
+                  <label className="col-span-2">Όχημα
+                    <select className="border p-1 w-full" value={mobileSignModal.vehicle} onChange={(e: any) => setMobileSignModal((m: any) => ({ ...m, vehicle: e.target.value }))}>
+                      {plates().map((pl: string) => (<option key={pl} value={pl}>{pl}</option>))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1">
+                <div className="text-sm mb-2">Σχεδιάστε τις υπογραφές στα παρακάτω πεδία.</div>
+                <div className="mb-3">
+                  <div className="text-xs mb-1">Υπογραφή Παραγωγού (Υπεύθυνος παράδοσης)</div>
+                  <div className="border p-2 rounded bg-white">
+                    <SignaturePad value={mobileSignModal.producerSignature} onChange={(v: any) => setMobileSignModal((m: any) => ({ ...m, producerSignature: v }))} className="h-36" />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs mb-1">Υπογραφή Μεταφορέα (Οδηγός)</div>
+                  <div className="border p-2 rounded bg-white">
+                    <SignaturePad value={mobileSignModal.transporterSignature} onChange={(v: any) => setMobileSignModal((m: any) => ({ ...m, transporterSignature: v }))} className="h-36" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer actions */}
+            <div className="pt-3">
+              {mobileSignModal.step === 1 ? (
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded" onClick={() => setMobileSignModal({ open: false, row: null, vehicle: '', date: today(), time: '08:00', step: 1, producerSignature: '', transporterSignature: '', projectInfo: null })}>Άκυρο</button>
+                  <button className="flex-1 bg-blue-600 text-white px-3 py-2 rounded" onClick={() => {
+                    if (!mobileSignModal.vehicle) return alert('Επιλέξτε όχημα πριν προχωρήσετε');
+                    setMobileSignModal((m: any) => ({ ...m, step: 2 }));
+                  }}>Συνέχεια</button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded" onClick={() => setMobileSignModal((m: any) => ({ ...m, step: 1 }))}>Πίσω</button>
+                  <button className="flex-1 bg-green-600 text-white px-3 py-2 rounded" onClick={() => {
+                    if (!mobileSignModal.row) return;
+                    if (!mobileSignModal.producerSignature || !mobileSignModal.transporterSignature) return alert('Απαιτούνται και οι δύο υπογραφές');
+                    onAcceptRequest(mobileSignModal.row, { vehicle: mobileSignModal.vehicle, date: mobileSignModal.date, time: mobileSignModal.time, producerSignature: mobileSignModal.producerSignature, transporterSignature: mobileSignModal.transporterSignature });
+                    // switch to Transfers tab in mobile view so the user sees the updated transport
+                    setTab('transfers');
+                    setMobileSignModal({ open: false, row: null, vehicle: '', date: today(), time: '08:00', producerSignature: '', transporterSignature: '', step: 1 });
+                  }}>Ολοκλήρωση</button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
-        {tab === 'units' && (
+        {tab === 'transfers' && !show && (
+          <MobileTransfers
+            open={open}
+            delivery={delivery}
+            done={done}
+            projects={projects}
+            onPreviewPdf={(t: any) => setPdfPreview(pdfTransferDataUrl(t))}
+            onCreateNew={() => setShow(true)}
+            onOpenDeliverySign={(row: any) => setDeliverySignModal({ open: true, row, unitSignature: '' })}
+          />
+        )}
+
+        {tab === 'requests' && !show && (
+          <MobileRequests
+            producerReq={producerReq}
+            carrierReq={carrierReq}
+            projects={projects}
+            onAccept={(row: any) => {
+              const pr = A(projects).find((p: any) => p.id === row.projectId);
+              setMobileSignModal({ open: true, row, vehicle: plates()[0], date: row.date || today(), time: row.time || '08:00', projectInfo: pr, step: 1, producerSignature: '', transporterSignature: '' });
+            }}
+            onPreviewPdf={(t: any) => setPdfPreview(pdfTransferDataUrl(t))}
+          />
+        )}
+
+        {tab === 'units' && !show && (
           <div className="p-4 space-y-3">
             <h2 className="font-bold text-lg mb-2">Μονάδες</h2>
             {UNITS.map((u: string) => (
-              <div key={u} className="border rounded-lg p-3 bg-gray-50 w-full text-left">
+              <div key={u} className="mobile-card p-3 w-full text-left transition-all">
                 <div className="font-semibold text-sm flex items-center gap-2"><Factory className="w-4 h-4" /> {u}</div>
                 <div className="text-xs text-gray-500">Ολοκληρωμένες: {done.filter((t: any) => t.unit === u).length}</div>
               </div>
@@ -1398,45 +1848,244 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
         )}
       </div>
 
-      <div className="grid grid-cols-3 border-t bg-white relative">
-        {[
-          { k: 'aitimata', l: 'Αιτήματα', i: Inbox },
-          { k: 'transfers', l: 'Μεταφορές', i: Truck },
-          { k: 'units', l: 'Μονάδες', i: Factory },
-        ].map(({ k, l, i: Icon }) => (
-          <button key={k} onClick={() => { setShow(false); setTab(k); }} className={`relative py-2 flex flex-col items-center ${tab === k ? 'text-blue-700' : 'text-gray-500'}`}>
-            <Icon className="w-5 h-5" />
-            <span className="text-xs">{l}</span>
+      {/* Bottom navigation: Αιτήματα (αριστερά), Μεταφορές (κέντρο μεγάλο), Μονάδες (δεξιά) */}
+      {!show && (
+      <div className="mobile-nav safe-bottom relative">
+        <div className="flex items-center gap-2 max-w-[380px] mx-auto p-2">
+          <button
+            onClick={() => setTab('requests')}
+            aria-pressed={tab==='requests'}
+            aria-label="Αιτήματα"
+            className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='requests' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}
+          >
+            <Inbox className="w-5 h-5" />
+            {(producerReq.length + carrierReq.length) > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">
+                {producerReq.length + carrierReq.length}
+              </span>
+            )}
           </button>
-        ))}
+          <button
+            onClick={() => setTab('transfers')}
+            aria-pressed={tab==='transfers'}
+            aria-label="Μεταφορές"
+            className={`mobile-pressable relative flex-[1.6] flex items-center justify-center rounded-2xl py-3 shadow-2xl ${tab==='transfers' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}
+          >
+            <Truck className="w-6 h-6" />
+            {open.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">
+                {open.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab('units')}
+            aria-pressed={tab==='units'}
+            aria-label="Μονάδες"
+            className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='units' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}
+          >
+            <Factory className="w-5 h-5" />
+            {done.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">
+                {done.length}
+              </span>
+            )}
+          </button>
+        </div>
+        {/* Floating action button (moved slightly higher and smoother) */}
+        <div className="absolute right-4 -top-10 md:-top-20">
+          <button
+            onClick={() => setShow((v:any)=>!v)}
+            aria-label="Νέα Μεταφορά"
+            className="rounded-full bg-green-600 text-white w-14 h-14 flex items-center justify-center fab-shadow mobile-pressable transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+            style={{ willChange: 'transform' }}
+          >
+            +
+          </button>
+        </div>
       </div>
+      )}
     </div>
+    {deliverySignModal.open && (
+      <div className="absolute inset-0 bg-white z-40 overflow-auto p-4 flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <button className="text-blue-700" onClick={() => setDeliverySignModal({ open: false, row: null, unitSignature: '' })}>✕ Κλείσιμο</button>
+          <div className="font-semibold">Τελική Υπογραφή Μονάδας</div>
+          <div style={{ width: 48 }} />
+        </div>
+        <div className="flex-1">
+          <div className="text-sm mb-2">Υπογραφή υπευθύνου παραλαβής της μονάδας.</div>
+          <div className="border p-2 rounded bg-white">
+            <SignaturePad value={deliverySignModal.unitSignature} onChange={(v: any) => setDeliverySignModal((m: any) => ({ ...m, unitSignature: v }))} className="h-36" />
+          </div>
+        </div>
+        <div className="pt-3 flex gap-2">
+          <button className="flex-1 bg-gray-200 text-gray-700 px-3 py-2 rounded" onClick={() => setDeliverySignModal({ open: false, row: null, unitSignature: '' })}>Άκυρο</button>
+          <button className="flex-1 bg-green-600 text-white px-3 py-2 rounded" onClick={() => {
+            if (!deliverySignModal.row) return;
+            if (!deliverySignModal.unitSignature) return alert('Απαιτείται υπογραφή μονάδας');
+            onFinalizeDelivery && onFinalizeDelivery(deliverySignModal.row.id, deliverySignModal.unitSignature);
+            setDeliverySignModal({ open: false, row: null, unitSignature: '' });
+          }}>Ολοκλήρωση</button>
+        </div>
+      </div>
+    )}
+    {pdfPreview && (CONFIG.PDF_OVERLAY_IN_APP ? (
+      <div className="absolute inset-0 z-50 bg-white p-3 overflow-auto animate-in">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-semibold">Προεπισκόπηση PDF</div>
+          <button onClick={() => setPdfPreview(null)} className="px-2 py-1 rounded bg-gray-100">✕</button>
+        </div>
+        <div style={{ height: 'calc(100% - 88px)' }} className="border">
+          <iframe src={pdfPreview || undefined} className="w-full h-full" />
+        </div>
+        <div className="flex justify-end mt-3">
+          <a href={pdfPreview || undefined} target="_blank" rel="noreferrer" className="px-3 py-2 bg-green-600 text-white rounded">Άνοιγμα σε νέα καρτέλα</a>
+        </div>
+      </div>
+    ) : (
+      <Modal title="Προεπισκόπηση PDF" onClose={() => setPdfPreview(null)}>
+        <div className="border" style={{ height: 600 }}>
+          <iframe src={pdfPreview || undefined} className="w-full h-full" />
+        </div>
+        <div className="flex justify-end mt-3">
+          <a href={pdfPreview || undefined} target="_blank" rel="noreferrer" className="px-3 py-2 bg-green-600 text-white rounded">Άνοιγμα σε νέα καρτέλα</a>
+        </div>
+      </Modal>
+    ))}
+    </>
   );
 }
 
-function MobileTransfers({ open, done }: any) {
+function MobileTransfers({ open, delivery = [], done, onPreviewPdf, projects, onCreateNew, onOpenDeliverySign }: any) {
   const [subTab, setSubTab] = useState('open');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // filters state for completed transfers
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [fUnit, setFUnit] = useState('');
+  const [fFrom, setFFrom] = useState('');
+  const [fTo, setFTo] = useState('');
+  const [fProducer, setFProducer] = useState('');
+  const [fProject, setFProject] = useState('');
+  const producers = Array.from(new Set((projects || []).map((p: any) => p.producer)));
+  const projectsForProducer = (projects || []).filter((p: any) => !fProducer || p.producer === fProducer);
+  // Apply filters to both open and done lists
+  const filteredOpen = open.filter((t: any) => {
+    if (fUnit && t.unit !== fUnit) return false;
+    if (fFrom && t.date && t.date < fFrom) return false;
+    if (fTo && t.date && t.date > fTo) return false;
+    if (fProducer && t.producer !== fProducer) return false;
+    if (fProject && t.projectId && t.projectId !== fProject) return false;
+    return true;
+  });
+  const filteredDone = done.filter((t: any) => {
+    if (fUnit && t.unit !== fUnit) return false;
+    if (fFrom && t.unitDate && t.unitDate < fFrom) return false;
+    if (fTo && t.unitDate && t.unitDate > fTo) return false;
+    if (fProducer && t.producer !== fProducer) return false;
+    if (fProject && t.projectId && t.projectId !== fProject) return false;
+    return true;
+  });
+  const filteredDelivery = A(delivery).filter((t: any) => {
+    if (fUnit && t.unit !== fUnit) return false;
+    if (fFrom && t.unitDate && t.unitDate < fFrom) return false;
+    if (fTo && t.unitDate && t.unitDate > fTo) return false;
+    if (fProducer && t.producer !== fProducer) return false;
+    if (fProject && t.projectId && t.projectId !== fProject) return false;
+    return true;
+  });
   return (
     <div className="p-3 space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <button className={`py-2 rounded-lg border ${subTab === 'open' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`} onClick={() => setSubTab('open')}>Ανοιχτές</button>
-        <button className={`py-2 rounded-lg border ${subTab === 'done' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700'}`} onClick={() => setSubTab('done')}>Ολοκληρωμένες</button>
+      {/* Segmented subtabs: centered with a filter icon aligned to the right */}
+      <div className="relative flex items-center justify-center">
+        <div className="inline-flex bg-gray-100 p-1 rounded-full shadow-inner">
+          <button
+            onClick={() => setSubTab('open')}
+            className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 ${subTab==='open' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            Ανοιχτές
+            {filteredOpen.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1">{filteredOpen.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setSubTab('delivery')}
+            className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 ${subTab==='delivery' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            Παράδοση
+            {filteredDelivery.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1">{filteredDelivery.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setSubTab('done')}
+            className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 ${subTab==='done' ? 'bg-white text-gray-900 shadow' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            Ολοκληρωμένες
+            {filteredDone.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center bg-blue-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1">{filteredDone.length}</span>
+            )}
+          </button>
+        </div>
+        <button
+          aria-label="Φίλτρα"
+          onClick={() => setFiltersOpen(true)}
+          className="absolute -right-2 p-2 rounded-full border bg-white text-gray-700 hover:bg-gray-50 active:scale-95 transition"
+        >
+          <Filter className="w-5 h-5" />
+        </button>
       </div>
 
       {subTab === 'open' && (
         <>
           <div className="text-sm text-gray-500">Ενεργές μεταφορές</div>
-          {open.length === 0 ? (
+          {filteredOpen.length === 0 ? (
             <div className="text-center text-gray-400 text-sm">Καμία ενεργή μεταφορά</div>
           ) : (
-            open.map((t: any) => (
-              <div key={t.id} className="border rounded-lg p-3 shadow-sm text-sm bg-white">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold">{t.producer} - {t.project}</div>
-                  <Badge tone="green"><CheckCircle2 className="w-3 h-3" /> OK για παράδοση</Badge>
+            filteredOpen.map((t: any) => (
+              <div key={t.id} className="mobile-card p-2 text-sm">
+                <TruckCSS />
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    {t.logo ? (
+                      <img src={t.logo} alt={t.producer} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${avatarColor(t.producer || '')}`}>{(t.producer || '').split(' ').map((s: string) => s[0]).slice(0,2).join('')}</div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-sm flex items-center gap-2 truncate">
+                        <span className="truncate">{t.producer}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-gray-500">{fmt(t.date)}{t.time ? ` • ${t.time}` : ''}</div>
+                        <div className="ml-2 flex items-center gap-1">
+                          <ClickBadge tone="orange" onClick={() => setExpanded(e => ({ ...e, [t.id]: !e[t.id] }))}><span className="truck-anim"><Truck className="w-3 h-3" /></span></ClickBadge>
+                          <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} title="Open PDF" aria-label="Open PDF" className="p-1 rounded bg-orange-50 text-orange-700"><FileText className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-1 flex items-center justify-between">
+                      <div className="text-xs text-gray-600 truncate">Προορισμός: <span className="font-medium">{t.unit}</span></div>
+                      <div className="flex items-center gap-2">
+                        <ClickBadge tone="green" onClick={() => setExpanded(e => ({ ...e, [t.id]: !e[t.id] }))} className="text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /></ClickBadge>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-xs text-blue-700">{t.status}</div>
+                    <div className={`grid transition-all duration-300 overflow-hidden ${expanded[t.id] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                      <div className="min-h-0">
+                        <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700">
+                        <div className="truncate"><strong>Λεπτομέρειες:</strong></div>
+                        <div className="truncate">Όχημα: {t.vehicle || '—'}</div>
+                        <div className="truncate">Υπεύθυνος: {t.managerName || '-' } {t.managerPhone ? `(${t.managerPhone})` : ''}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">{t.unit} | {t.vehicle} • {fmt(t.date)}{t.time ? ` • ${t.time}` : ''}</div>
-                <div className="text-xs text-blue-700 mt-1">{t.status}</div>
               </div>
             ))
           )}
@@ -1449,16 +2098,139 @@ function MobileTransfers({ open, done }: any) {
           {done.length === 0 ? (
             <div className="text-center text-gray-400 text-sm">—</div>
           ) : (
-            done.map((t: any) => (
+            filteredDone.map((t: any) => (
               <div key={t.id} className="border rounded-lg p-3 shadow-sm text-sm bg-gray-50">
                 <div className="font-semibold">{t.producer} - {t.project}</div>
                 <div className="text-xs text-gray-500">{t.unit} • Παραλαβή: {fmt(t.unitDate)}</div>
-                <div className="text-xs text-green-700 mt-1">Ολοκληρωμένο</div>
+                <div className="text-xs text-green-700 mt-1">Ολοκληρωμένο <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} title="Open PDF" aria-label="Open PDF" className="ml-2 p-1 rounded bg-green-100 text-green-800"><FileText className="w-4 h-4" /></button></div>
               </div>
             ))
           )}
         </>
       )}
+      {subTab === 'delivery' && (
+        <>
+          <div className="text-sm text-gray-500">Παράδοση — αναμονή υπογραφής μονάδας</div>
+          {filteredDelivery.length === 0 ? (
+            <div className="text-center text-gray-400 text-sm">—</div>
+          ) : (
+            filteredDelivery.map((t: any) => (
+              <div key={t.id} className="border rounded-lg p-3 shadow-sm text-sm bg-white">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold truncate">{t.producer} — {t.project}</div>
+                  <div className="text-xs text-gray-500">{fmt(t.unitDate)}</div>
+                </div>
+                <div className="text-xs text-gray-600 truncate">{t.address}</div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-blue-700">{t.status || 'Παράδοση'}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} className="p-1 rounded bg-orange-50 text-orange-700" aria-label="Open PDF"><FileText className="w-4 h-4" /></button>
+                    <button onClick={() => onOpenDeliverySign && onOpenDeliverySign(t)} className="px-2 py-1 rounded bg-green-600 text-white text-xs">Υπογραφή</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </>
+      )}
+      {filtersOpen && (
+        <div className="absolute inset-0 z-50 bg-white p-3 overflow-auto animate-in">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold">Φίλτρα Ολοκληρωμένων</div>
+            <button onClick={() => setFiltersOpen(false)} className="px-2 py-1 rounded bg-gray-100">✕</button>
+          </div>
+          <div className="space-y-3 p-2">
+            <div>
+              <label className="text-xs">Μονάδα</label>
+              <select className="w-full border p-1 mt-1" value={fUnit} onChange={(e: any) => setFUnit(e.target.value)}>
+                <option value="">— Όλες —</option>
+                {UNITS.map((u: string) => (<option key={u} value={u}>{u}</option>))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs">Από</label>
+                <input type="date" className="w-full border p-1 mt-1" value={fFrom} onChange={(e: any) => setFFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs">Έως</label>
+                <input type="date" className="w-full border p-1 mt-1" value={fTo} onChange={(e: any) => setFTo(e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs">Παραγωγός</label>
+              <select className="w-full border p-1 mt-1" value={fProducer} onChange={(e: any) => { setFProducer(e.target.value); setFProject(''); }}>
+                <option value="">— Όλοι —</option>
+                {(producers as string[]).map((p: string) => (<option key={p} value={p}>{p}</option>))}
+              </select>
+            </div>
+            {fProducer && (
+              <div>
+                <label className="text-xs">Έργο (προαιρετικό)</label>
+                <select className="w-full border p-1 mt-1" value={fProject} onChange={(e: any) => setFProject(e.target.value)}>
+                  <option value="">— Όλα —</option>
+                  {projectsForProducer.map((p: any) => (<option key={p.id} value={p.id}>{p.projectName}</option>))}
+                </select>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Btn className="bg-gray-100" onClick={() => { setFUnit(''); setFFrom(''); setFTo(''); setFProducer(''); setFProject(''); setFiltersOpen(false); }}>Επαναφορά</Btn>
+              <Btn className="bg-blue-600 text-white" onClick={() => setFiltersOpen(false)}>Εφαρμογή</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileRequests({ producerReq = [], carrierReq = [], onAccept, onPreviewPdf }: any) {
+  return (
+    <div className="p-3 space-y-4">
+      <div>
+        <h3 className="font-semibold text-sm mb-2">Αιτήματα Παραγωγών</h3>
+        {A(producerReq).length === 0 ? (
+          <div className="text-center text-gray-400 text-sm">—</div>
+        ) : (
+          A(producerReq).map((t: any) => (
+            <div key={t.id} className="mobile-card p-3 mb-2 text-sm">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold truncate">{t.producer} — {t.project}</div>
+                <div className="text-xs text-gray-500">{fmt(t.date)}</div>
+              </div>
+              <div className="text-xs text-gray-600 truncate">{t.address}</div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-xs text-blue-700">{t.status}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} className="p-1 rounded bg-orange-50 text-orange-700" aria-label="Open PDF"><FileText className="w-4 h-4" /></button>
+                  <button onClick={() => onAccept && onAccept(t)} className="px-2 py-1 rounded bg-green-600 text-white text-xs">Αποδοχή</button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-sm mb-2">Αιτήματα Μεταφορέα</h3>
+        {A(carrierReq).length === 0 ? (
+          <div className="text-center text-gray-400 text-sm">—</div>
+        ) : (
+          A(carrierReq).map((t: any) => (
+            <div key={t.id} className="mobile-card p-3 mb-2 text-sm">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold truncate">{t.producer} — {t.project}</div>
+                <div className="text-xs text-gray-500">{fmt(t.date)}</div>
+              </div>
+              <div className="text-xs text-gray-600 truncate">{t.address}</div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-xs text-blue-700">{t.status}</span>
+                <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} className="p-1 rounded bg-orange-50 text-orange-700" aria-label="Open PDF"><FileText className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -1539,7 +2311,7 @@ export default function App() {
   };
 
   const approveTransport = (id: string) => {
-    setTransports((prev: any[]) => prev.map((t: any) => (t.id === id ? { ...t, approvedByProducer: true, status: 'Εγκρίθηκε από Παραγωγό', isNew: true } : t)));
+  setTransports((prev: any[]) => prev.map((t: any) => (t.id === id ? { ...t, approvedByProducer: true, status: 'Σε πορεία', isNew: true } : t)));
     addNotif('Αίτημα Εγκρίθηκε', 'Έγκριση από Παραγωγό', { page: 'transporter', tab: 'transfers' });
   };
   const rejectTransport = (id: string) => {
@@ -1547,8 +2319,57 @@ export default function App() {
   };
   const addTransport = (t: any) => setTransports((prev: any[]) => [t, ...prev]);
   const unitReceive = (id: string, weight: number, eka: string) => {
-    setTransports((prev: any[]) => prev.map((t: any) => (t.id === id ? { ...t, receivedByUnit: true, unitDate: today(), weight, ekaCategory: eka, status: 'Ολοκληρωμένο', isNew: true } : t)));
-    addNotif('Ολοκλήρωση Μεταφοράς', 'Η μονάδα παρέλαβε', { page: 'producer', tab: 'transfers' });
+    setTransports((prev: any[]) => {
+      let signed = false;
+      const next = prev.map((t: any) => {
+        if (t.id !== id) return t;
+        signed = !!(t.producerSignature && t.transporterSignature);
+        if (signed) {
+          // Signed flow: go to Παράδοση (awaiting final unit signature)
+          return {
+            ...t,
+            deliveredToUnit: true,
+            receivedByUnit: false,
+            unitDate: today(),
+            weight,
+            ekaCategory: eka,
+            status: 'Παράδοση — αναμονή υπογραφής',
+            isNew: true,
+          };
+        }
+        // No signatures (producer-only acceptance): complete directly
+        return {
+          ...t,
+          deliveredToUnit: false,
+          receivedByUnit: true,
+          unitDate: today(),
+          weight,
+          ekaCategory: eka,
+          status: 'Ολοκληρωμένο',
+          isNew: true,
+        };
+      });
+      // Fire appropriate notification based on path
+      if (signed) {
+        addNotif('Παράδοση στη Μονάδα', 'Αναμονή τελικής υπογραφής', { page: 'transporter', tab: 'transfers' });
+      } else {
+        addNotif('Ολοκλήρωση Μεταφοράς', 'Η μονάδα παρέλαβε (χωρίς υπογραφές)', { page: 'producer', tab: 'transfers' });
+      }
+      return next;
+    });
+  };
+
+  // finalize delivery by unit (capture unit responsible signature)
+  const finalizeUnitDelivery = (id: string, unitSignature?: string) => {
+    setTransports((prev: any[]) => prev.map((t: any) => (t.id === id ? {
+      ...t,
+      receivedByUnit: true,
+      deliveredToUnit: false,
+      unitSignature: unitSignature || t.unitSignature,
+      status: 'Ολοκληρωμένο',
+      isNew: true,
+    } : t)));
+    addNotif('Ολοκλήρωση Μεταφοράς', 'Η μονάδα υπέγραψε την παραλαβή', { page: 'producer', tab: 'transfers' });
   };
 
   // producer → create request
@@ -1562,7 +2383,20 @@ export default function App() {
   const acceptRequest = (t: any, details?: { vehicle?: string; date?: string; time?: string }) => {
     const { vehicle, date, time } = details || {};
     const v = vehicle || plates()[0];
-    setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? { ...x, vehicle: v, date: date || x.date, time: time || x.time, approvedByProducer: true, status: 'Εγκρίθηκε από Παραγωγό', isNew: true } : x)));
+  // if signatures provided (from mobile flow), persist them on the transport record
+  const producerSignature = (details as any)?.producerSignature;
+  const transporterSignature = (details as any)?.transporterSignature;
+  setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? {
+    ...x,
+    vehicle: v,
+    date: date || x.date,
+    time: time || x.time,
+    approvedByProducer: true,
+    status: 'Σε πορεία',
+    isNew: true,
+    producerSignature: producerSignature || x.producerSignature,
+    transporterSignature: transporterSignature || x.transporterSignature,
+  } : x)));
     addNotif('Η αίτηση εγκρίθηκε', `${t.producer} / ${t.project}`, { page: 'unit', tab: 'transfers' });
   };
 
@@ -1575,6 +2409,11 @@ export default function App() {
 
   return (
     <div className="p-4">
+      {CONFIG.SHOW_DEV_BANNER && (
+        <div className="mb-3 p-2 rounded text-white bg-red-600 text-center font-semibold">
+          DEV HMR TEST — you should see this banner if the app updated
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-2">
           <Btn className={page === 'producer' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => { setSelectedProject(null); setPage('producer'); }}>Παραγωγός {prodPending > 0 && <span className="ml-1 bg-red-600 text-white rounded-full px-2 text-xs">{prodPending}</span>}</Btn>
@@ -1599,7 +2438,7 @@ export default function App() {
           {transporterMode === 'web' ? (
             <Transporter projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} addNotif={addNotif} deepLink={deepLink} />
           ) : (
-            <EcoMobileFrame projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} addNotif={addNotif} deepLink={deepLink} />
+            <EcoMobileFrame projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} addNotif={addNotif} deepLink={deepLink} onFinalizeDelivery={finalizeUnitDelivery} />
           )}
         </div>
       )}
