@@ -428,7 +428,7 @@ const BellBtn = ({ items, onJump }: any) => {
 };
 
 /******** producer details ********/
-const ProjectDetails = ({ project, transports, onBack, onRequestTransfer }: any) => {
+const ProjectDetails = ({ project, transports, onBack, onRequestTransfer, onCancelRequest }: any) => {
   const list = A(transports).filter((t: any) => t.projectId === project.id);
   const [justRequested, setJustRequested] = React.useState<string | null>(null);
 
@@ -475,10 +475,8 @@ const ProjectDetails = ({ project, transports, onBack, onRequestTransfer }: any)
         <div className="bg-white rounded border p-3">
           <div className="font-semibold mb-2">Εντολές προς Μεταφορέα</div>
           <div className="space-y-2">
-            <button
-              className="w-full text-left rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-blue-50 to-white"
-              onClick={() => quickRequest('empty-bin')}
-            >
+            {/* Empty bin request box with right-side actions */}
+            <div className="w-full rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-blue-50 to-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Trash2 className="w-6 h-6 text-blue-600" />
                 <div>
@@ -486,11 +484,20 @@ const ProjectDetails = ({ project, transports, onBack, onRequestTransfer }: any)
                   <div className="text-xs text-gray-600">Αίτημα για παράδοση άδειου κάδου στο έργο</div>
                 </div>
               </div>
-            </button>
-            <button
-              className="w-full text-left rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-green-50 to-white"
-              onClick={() => quickRequest('full-pickup')}
-            >
+              <div className="flex items-center gap-2">
+                {list.some((t: any) => t.fromProducer && !t.approvedByProducer && t.requestType === 'empty-bin') ? (
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-gray-600">Αναμονή αποδοχής</div>
+                    <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(project.id, 'empty-bin')}>Ακύρωση</Btn>
+                  </div>
+                ) : (
+                  <button onClick={() => quickRequest('empty-bin')} className="px-3 py-1 rounded bg-blue-600 text-white text-sm">Αίτημα</button>
+                )}
+              </div>
+            </div>
+
+            {/* Full pickup request box with right-side actions */}
+            <div className="w-full rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-green-50 to-white flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Truck className="w-6 h-6 text-green-600" />
                 <div>
@@ -498,7 +505,19 @@ const ProjectDetails = ({ project, transports, onBack, onRequestTransfer }: any)
                   <div className="text-xs text-gray-600">Αίτημα για άμεση παραλαβή γεμάτου κάδου</div>
                 </div>
               </div>
-            </button>
+              <div className="flex items-center gap-2">
+                {list.some((t: any) => t.fromProducer && !t.approvedByProducer && t.requestType === 'full-pickup') ? (
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-gray-600">Αναμονή αποδοχής</div>
+                    <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(project.id, 'full-pickup')}>Ακύρωση</Btn>
+                  </div>
+                ) : (
+                  <button onClick={() => quickRequest('full-pickup')} className="px-3 py-1 rounded bg-green-600 text-white text-sm">Αίτημα</button>
+                )}
+              </div>
+            </div>
+
+            {/* transient quick feedback */}
             {justRequested && (
               <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
                 {justRequested === 'empty-bin'
@@ -820,7 +839,7 @@ const ProjectView = ({ project, transports, onBack }: any) => {
  
 
 /******** producer ********/
-const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRejectTransport, onOpenProject, onRequestTransfer, notifications, onJump, deepLink }: any) => {
+const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRejectTransport, onOpenProject, onRequestTransfer, onCancelRequest, notifications, onJump, deepLink }: any) => {
   const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -829,7 +848,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
   const [projSubTab, setProjSubTab] = useState<'active' | 'completed'>('active');
   const [showProjectFilters, setShowProjectFilters] = useState(false);
   const [showTransferFilters, setShowTransferFilters] = useState(false);
-  const [reqSubTab, setReqSubTab] = useState<'all' | 'transporter' | 'producer'>('all');
+  const [reqSubTab, setReqSubTab] = useState<'all' | 'transfers' | 'bins'>('all');
   const myProducer = 'Παραγωγός Α';
   const myTrans = A(transports).filter((t: any) => t.producer === myProducer);
   // apply page-level filters (producer is fixed to this producer)
@@ -918,14 +937,22 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
 
       {tab === 'transfers' && (
         <div>
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex gap-2">
-              <button onClick={() => setSubTab('active')} className={`px-3 py-2 ${subTab === 'active' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Εκκρεμείς</button>
-              <button onClick={() => setSubTab('completed')} className={`px-3 py-2 ${subTab === 'completed' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Ολοκληρωμένες</button>
+          <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-2">
+                <button onClick={() => setSubTab('active')} className={`px-3 py-2 ${subTab === 'active' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Εκκρεμείς</button>
+                <button onClick={() => setSubTab('completed')} className={`px-3 py-2 ${subTab === 'completed' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Ολοκληρωμένες</button>
+              </div>
+              {/* mobile: show filter next to subtabs (will appear below because parent stacks on small screens) */}
+              <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700 sm:hidden" onClick={() => setShowTransferFilters(v => !v)} title="Φίλτρα">
+                <Filter className="w-4 h-4" />
+                <span className="text-sm">Φίλτρα</span>
+              </button>
             </div>
-            <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowTransferFilters(v => !v)} title="Φίλτρα">
+            {/* desktop: keep filter on the right */}
+            <button className="hidden sm:flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowTransferFilters(v => !v)} title="Φίλτρα">
               <Filter className="w-4 h-4" />
-              <span className="text-sm hidden sm:inline">Φίλτρα</span>
+              <span className="text-sm">Φίλτρα</span>
             </button>
           </div>
           {showTransferFilters && (
@@ -1118,8 +1145,8 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
           <div className="mb-3 flex items-center justify-between">
             <div className="flex gap-2">
               <button onClick={() => setReqSubTab('all')} className={`px-3 py-2 ${reqSubTab === 'all' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Όλα</button>
-              <button onClick={() => setReqSubTab('transporter')} className={`px-3 py-2 ${reqSubTab === 'transporter' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Μεταφορέα</button>
-              <button onClick={() => setReqSubTab('producer')} className={`px-3 py-2 ${reqSubTab === 'producer' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Παραγωγού</button>
+              <button onClick={() => setReqSubTab('transfers')} className={`px-3 py-2 ${reqSubTab === 'transfers' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Μεταφοράς</button>
+              <button onClick={() => setReqSubTab('bins')} className={`px-3 py-2 ${reqSubTab === 'bins' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Κάδων</button>
             </div>
             <div className="flex gap-2">
               <Btn className="bg-blue-600 text-white" onClick={() => setNewTransferOpen(true)}>+ Νέα Μεταφορά</Btn>
@@ -1129,11 +1156,12 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
           {(() => {
             let list: any[] = [];
             if (reqSubTab === 'all') list = [...reqFromTransporter, ...reqFromProducer].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-            if (reqSubTab === 'transporter') list = reqFromTransporter;
-            if (reqSubTab === 'producer') list = reqFromProducer;
+            if (reqSubTab === 'transfers') list = reqFromTransporter;
+            if (reqSubTab === 'bins') list = reqFromProducer.filter((t: any) => t.requestType === 'empty-bin' || t.requestType === 'full-pickup');
+            // For 'all' view keep both; for 'transfers' show only transporter-created, for 'bins' show only producer bin-related requests
             return (
               <div className="bg-white border rounded p-3">
-                <div className="font-semibold mb-2">Αιτήματα {reqSubTab === 'all' ? '(Όλα)' : reqSubTab === 'transporter' ? '(Μεταφορέα)' : '(Παραγωγού)'}
+                <div className="font-semibold mb-2">Αιτήματα {reqSubTab === 'all' ? '(Όλα)' : reqSubTab === 'transfers' ? '(Μεταφοράς)' : '(Κάδων)'}
                 </div>
                 <table className="w-full border bg-white text-sm">
                   <thead className="bg-gray-100">
@@ -1154,15 +1182,21 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                         <td className="border text-center">{fmt(t.date)}</td>
                         <td className="border text-center">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="text-xs text-gray-600">{t.requestType === 'empty-bin' ? 'Αίτημα Κενού Κάδου' : t.requestType === 'full-pickup' ? 'Αίτημα Παραλαβής Κάδου' : t.fromProducer ? 'Αίτημα Παραγωγού' : 'Αίτημα Μεταφορέα'}</div>
-                            {!t.fromProducer ? (
-                              <div className="flex gap-2 justify-center">
-                                <Btn className="bg-green-600 text-white" onClick={() => onApproveTransport(t.id)}>Αποδοχή</Btn>
-                                <Btn className="bg-red-600 text-white" onClick={() => onRejectTransport(t.id)}>Απόρριψη</Btn>
-                              </div>
-                            ) : (
-                              <Badge tone="orange"><Clock className="w-3 h-3" /><span>Αναμονή</span></Badge>
-                            )}
+                            <div className="text-xs text-gray-700 text-left">
+                              {t.requestType === 'empty-bin' ? (
+                                <div className="font-medium">Ο Παραγωγός χρειάζεται κενό κάδο για το "{t.project}"</div>
+                              ) : t.requestType === 'full-pickup' ? (
+                                <div className="font-medium">Ο κάδος στο έργο "{t.project}" του παραγωγού γέμισε</div>
+                              ) : (
+                                <div className="font-medium">Ο Παραγωγός χρειάζεται μεταφορά για το "{t.project}"</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge tone="orange"><Clock className="w-3 h-3" /><span>Αναμονή αποδοχής μεταφορέα</span></Badge>
+                              {t.fromProducer && (
+                                <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(t.projectId, t.requestType)}>Ακύρωση</Btn>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -1311,7 +1345,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             setNtForm({ address: '', transporter: '', unit: '', vehicle: '' });
             // Switch to Requests tab so user sees it right away
             setTab('requests');
-            setReqSubTab('producer');
+            setReqSubTab('bins');
           }
         }} submitLabel="Αίτημα">
           <div className="text-sm mb-2">Επιλέξτε έργο. Τα υπόλοιπα στοιχεία θα συμπληρωθούν αυτόματα.</div>
@@ -2314,7 +2348,7 @@ function UnitTabletApp({ projects, transports, onReceive }: any) {
 }
 
 // Producer mobile frame and app
-function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequest, notifications, onJump, deepLink }: any) {
+function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, notifications, onJump, deepLink }: any) {
   return (
     <div className="flex justify-center items-center min-h-[700px] bg-gray-200 rounded-lg">
       <div className="relative bg-black p-4 rounded-[3rem] w-[380px] h-[780px] shadow-2xl border-[8px] border-gray-900">
@@ -2326,6 +2360,7 @@ function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequ
             onApprove={onApprove}
             onReject={onReject}
             onRequest={onRequest}
+            onCancelRequest={onCancelRequest}
             notifications={notifications}
             onJump={onJump}
             deepLink={deepLink}
@@ -2336,7 +2371,7 @@ function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequ
   );
 }
 
-function ProducerMobileApp({ projects, transports, onApprove, onReject, onRequest, notifications, onJump }: any) {
+function ProducerMobileApp({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, notifications, onJump }: any) {
   const [tab, setTab] = useState('projects');
   const [show, setShow] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
@@ -2430,13 +2465,22 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
                           <div className="text-xs text-gray-500">{fmt(t.date)}</div>
                         </div>
                         <div className="text-xs text-gray-600 truncate">{t.address}</div>
-                        <div className="mt-2 flex items-center justify-between">
-                          {statusText ? (
-                            <span className="text-xs text-blue-700">{statusText}</span>
-                          ) : (<span />)}
-                          <div className="flex items-center gap-2">
+                        <div className="mt-2">
+                          <div className="text-xs text-gray-700 text-left">
+                            {t.requestType === 'empty-bin' ? (
+                              <div className="font-medium">Ο Παραγωγός χρειάζεται κενό κάδο για το "{t.project}"</div>
+                            ) : t.requestType === 'full-pickup' ? (
+                              <div className="font-medium">Ο κάδος στο "{t.project}" του παραγωγού γέμισε</div>
+                            ) : (
+                              <div className="font-medium">Ο Παραγωγός χρειάζεται μεταφορά για το "{t.project}"</div>
+                            )}
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
                             {t.fromProducer ? (
-                              <></>
+                              <>
+                                <Badge tone="orange"><Clock className="w-3 h-3" /><span>Αναμονή αποδοχής μεταφορέα</span></Badge>
+                                {onCancelRequest && <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest(t.projectId, t.requestType)}>Ακύρωση</Btn>}
+                              </>
                             ) : (
                               <>
                                 <Btn className="bg-green-600 text-white" onClick={() => onApprove && onApprove(t.id)}>Αποδοχή</Btn>
@@ -3079,8 +3123,8 @@ function MobileTransfers({ open, delivery = [], done, onPreviewPdf, projects, on
   });
   return (
     <div className="p-3 space-y-3">
-      {/* Segmented subtabs: centered with a filter icon aligned to the right */}
-      <div className="relative flex items-center justify-center">
+      {/* Segmented subtabs: centered with a filter icon placed inline below the tabs */}
+      <div className="flex flex-col items-center gap-2">
         <div className="inline-flex bg-gray-100 p-1 rounded-full shadow-inner">
           <button
             onClick={() => setSubTab('open')}
@@ -3110,18 +3154,14 @@ function MobileTransfers({ open, delivery = [], done, onPreviewPdf, projects, on
             )}
           </button>
         </div>
-        <button
-          aria-label="Φίλτρα"
-          onClick={() => setFiltersOpen(true)}
-          className="absolute -right-2 p-2 rounded-full border bg-white text-gray-700 hover:bg-gray-50 active:scale-95 transition"
-        >
-          <Filter className="w-5 h-5" />
-        </button>
       </div>
 
       {subTab === 'open' && (
         <>
-          <div className="text-sm text-gray-500">Ενεργές μεταφορές</div>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div>Ενεργές μεταφορές</div>
+            <button aria-label="Φίλτρα" onClick={() => setFiltersOpen(true)} className="p-1 rounded text-gray-700 hover:bg-gray-50"><Filter className="w-4 h-4" /></button>
+          </div>
           {filteredOpen.length === 0 ? (
             <div className="text-center text-gray-400 text-sm">Καμία ενεργή μεταφορά</div>
           ) : (
@@ -3177,7 +3217,10 @@ function MobileTransfers({ open, delivery = [], done, onPreviewPdf, projects, on
 
       {subTab === 'done' && (
         <>
-          <div className="text-sm text-gray-500">Ολοκληρωμένες μεταφορές</div>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div>Ολοκληρωμένες μεταφορές</div>
+            <button aria-label="Φίλτρα" onClick={() => setFiltersOpen(true)} className="p-1 rounded text-gray-700 hover:bg-gray-50"><Filter className="w-4 h-4" /></button>
+          </div>
           {done.length === 0 ? (
             <div className="text-center text-gray-400 text-sm">—</div>
           ) : (
@@ -3193,7 +3236,10 @@ function MobileTransfers({ open, delivery = [], done, onPreviewPdf, projects, on
       )}
       {subTab === 'delivery' && (
         <>
-          <div className="text-sm text-gray-500">Παράδοση — αναμονή υπογραφής μονάδας</div>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div>Παράδοση</div>
+            <button aria-label="Φίλτρα" onClick={() => setFiltersOpen(true)} className="p-1 rounded text-gray-700 hover:bg-gray-50"><Filter className="w-4 h-4" /></button>
+          </div>
           {filteredDelivery.length === 0 ? (
             <div className="text-center text-gray-400 text-sm">—</div>
           ) : (
@@ -3592,6 +3638,12 @@ export default function App() {
     addNotif('Νέα Αίτηση Παραγωγού', `${project.producer} / ${project.projectName}`, { page: 'transporter', tab: 'aitimata' });
   };
 
+  // producer → cancel request (remove pending requests created by producer)
+  const cancelRequest = (projectId: string, requestType?: 'empty-bin' | 'full-pickup') => {
+    setTransports((prev: any[]) => prev.filter((t: any) => !(t.projectId === projectId && t.fromProducer && !t.approvedByProducer && t.requestType === requestType)));
+    addNotif && addNotif('Ακύρωση Αίτησης', 'Η αίτηση ακυρώθηκε από Παραγωγό', { page: 'transporter', tab: 'aitimata' });
+  };
+
   // transporter accepts request (web & mobile share this)
   const acceptRequest = (t: any, details?: { vehicle?: string; date?: string; time?: string }) => {
     const { vehicle, date, time } = details || {};
@@ -3646,12 +3698,12 @@ export default function App() {
           </div>
           {producerMode === 'web' ? (
             selectedProject ? (
-              <ProjectDetails project={selectedProject} transports={transports} onBack={() => setSelectedProject(null)} onRequestTransfer={requestTransfer} />
+              <ProjectDetails project={selectedProject} transports={transports} onBack={() => setSelectedProject(null)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} />
             ) : (
-              <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} />
+              <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} />
             )
           ) : (
-            <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} />
+            <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} />
           )}
         </div>
       )}
