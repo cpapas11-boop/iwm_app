@@ -31,6 +31,7 @@ const EKA = [
 
 const UNITS = ['RRC', 'Latouros'];
 const TRANSPORTERS = ['Euroskip', 'Skip Hire'];
+const DEBTOR_OPTIONS = ['Εργολάβος Α','Εργολάβος Β','Εργολάβος Γ','Εταιρεία Skip 1','Εταιρεία Skip 2','Εταιρεία Skip 3'];
 
 const plates = () => {
   const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -264,8 +265,8 @@ const TabBar = ({ tabs, active, onChange }: any) => {
   );
 };
 
-const Modal = ({ title, children, onClose, onSubmit, submitLabel = 'Καταχώρηση' }: any) => (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-in">
+const Modal = ({ title, children, onClose, onSubmit, submitLabel = 'Καταχώρηση', inside = false }: any) => (
+  <div className={`${inside ? 'absolute' : 'fixed'} inset-0 bg-black/40 flex items-center justify-center z-50 animate-in`}>
     <div className="bg-white rounded shadow-lg p-4 w-full max-w-3xl animate-scale">
       <div className="flex justify-between items-center mb-3">
         <h2 className="text-lg font-semibold">{title}</h2>
@@ -448,7 +449,16 @@ const BellBtn = ({ items, onJump }: any) => {
 const ProjectDetails = ({ project, transports, documents = [], onUploadDocument, onBack, onRequestTransfer, onCancelRequest }: any) => {
   const list = A(transports).filter((t: any) => t.projectId === project.id);
   const [justRequested, setJustRequested] = React.useState<string | null>(null);
+  const [showReqModal, setShowReqModal] = React.useState(false);
+  const [reqType, setReqType] = React.useState<'new-bin' | 'change-bin' | 'move-bin' | ''>('');
   const [subTab, setSubTab] = React.useState<'overview' | 'collective'>('overview');
+  // Products ordering (to Unit)
+  const [prodOrderOpen, setProdOrderOpen] = React.useState(false);
+  const [unitProducts, setUnitProducts] = React.useState<any[]>([]);
+  const [prodOrderForm, setProdOrderForm] = React.useState<{ product: string; quantity: string }>({ product: '', quantity: '' });
+  const refreshUnitProducts = () => {
+    try { const raw = localStorage.getItem('iwm_unit_products'); const arr = raw ? JSON.parse(raw) : []; setUnitProducts(Array.isArray(arr) ? arr : []); } catch { setUnitProducts([]); }
+  };
   // local fallback storage if parent doesn't pass documents state/handler
   const [localDocs, setLocalDocs] = React.useState<any[]>([]);
   // dedicated file inputs per document type
@@ -565,27 +575,40 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                   <div className="flex items-center gap-3">
                     <Trash2 className="w-6 h-6 text-yellow-600" />
                     <div>
-                      <div className="font-semibold">Αίτημα Αλλαγής Κάδου</div>
-                      <div className="text-xs text-gray-600">Αίτημα για αλλαγή κάδου στο έργο</div>
+                      <div className="font-semibold">Αίτημα Κάδου</div>
+                      <div className="text-xs text-gray-600">Επιλέξτε τύπο αιτήματος (Νέος / Αλλαγή / Μεταφορά)</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {list.some((t: any) => t.fromProducer && !t.approvedByProducer && t.requestType === 'change-bin') ? (
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs text-gray-600">Αναμονή αποδοχής</div>
-                        <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(project.id, 'change-bin')}>Ακύρωση</Btn>
-                      </div>
-                    ) : (
-                      <button onClick={() => quickRequest('change-bin')} className="px-3 py-1 rounded bg-yellow-600 text-white text-sm">Αίτημα</button>
-                    )}
+                    <button onClick={() => setShowReqModal(true)} className="px-3 py-1 rounded bg-yellow-600 text-white text-sm">Αίτημα</button>
                   </div>
                 </div>
 
+                {list.some((t: any) => t.fromProducer && !t.approvedByProducer && ['new-bin','move-bin','change-bin'].includes(t.requestType)) && (
+                  <div className="text-xs text-gray-600">Υπάρχει αίτημα σε αναμονή αποδοχής</div>
+                )}
+
                 {justRequested && (
                   <div className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                    Ο μεταφορέας θα ενημερωθεί για αλλαγή κάδου.
+                    {justRequested === 'new-bin' ? 'Ο μεταφορέας θα ενημερωθεί για νέο κάδο.' : justRequested === 'move-bin' ? 'Ο μεταφορέας θα ενημερωθεί για μεταφορά κάδου.' : 'Ο μεταφορέας θα ενημερωθεί για αλλαγή κάδου.'}
                   </div>
                 )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded border p-3">
+              <div className="font-semibold mb-2">Εντολές προς Μονάδα Διαχείρισης Αποβλήτων</div>
+              <div className="w-full rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-indigo-50 to-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-6 h-6 text-indigo-600" />
+                  <div>
+                    <div className="font-semibold">Παραγγελία Υλικού</div>
+                    <div className="text-xs text-gray-600">Επέλεξε προϊόν και ποσότητα για παραγγελία από τη Μονάδα</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { refreshUnitProducts(); setProdOrderOpen(true); }} className="px-3 py-1 rounded bg-indigo-600 text-white text-sm">Παραγγελία</button>
+                </div>
               </div>
             </div>
           </div>
@@ -746,6 +769,126 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
             </div>
           </div>
         </>
+      )}
+
+      {showReqModal && (
+        <Modal
+          title="Νέο Αίτημα Κάδου"
+          onClose={() => { setShowReqModal(false); setReqType(''); }}
+          onSubmit={() => {
+            if (!reqType) { alert('Επιλέξτε τύπο αιτήματος'); return; }
+            if (onRequestTransfer) {
+              onRequestTransfer(project, reqType as any);
+              setJustRequested(reqType);
+            }
+            setShowReqModal(false);
+            setReqType('');
+            setTimeout(() => setJustRequested(null), 2600);
+          }}
+          submitLabel="Αίτημα"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <label className="block">Παραγωγός
+              <input className="border p-1 w-full bg-gray-50" value={project.producer} readOnly />
+            </label>
+            <label className="block">Έργο
+              <input className="border p-1 w-full bg-gray-50" value={project.projectName} readOnly />
+            </label>
+            <label className="block">Διεύθυνση
+              <input className="border p-1 w-full bg-gray-50" value={project.address || ''} readOnly />
+            </label>
+            <label className="block">Μονάδα
+              <input className="border p-1 w-full bg-gray-50" value={project.unit || ''} readOnly />
+            </label>
+            <label className="block md:col-span-2">Μεταφορέας
+              <input className="border p-1 w-full bg-gray-50" value={project.transporter || ''} readOnly />
+            </label>
+          </div>
+
+          <div className="mt-4">
+            <div className="font-semibold mb-2">Επιλογή τύπου αιτήματος</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button type="button" onClick={() => setReqType('new-bin')} className={`px-3 py-2 rounded border text-sm ${reqType === 'new-bin' ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-800'}`}>
+                Νέος κάδος
+              </button>
+              <button type="button" onClick={() => setReqType('change-bin')} className={`px-3 py-2 rounded border text-sm ${reqType === 'change-bin' ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-800'}`}>
+                Αλλαγή κάδου
+              </button>
+              <button type="button" onClick={() => setReqType('move-bin')} className={`px-3 py-2 rounded border text-sm ${reqType === 'move-bin' ? 'bg-yellow-600 text-white border-yellow-600' : 'bg-gray-50 text-gray-800'}`}>
+                Μεταφορά κάδου
+              </button>
+            </div>
+            {!reqType && (
+              <div className="text-xs text-gray-500 mt-2">Επιλέξτε έναν τύπο για να συνεχίσετε.</div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {prodOrderOpen && (
+        <Modal
+          title="Παραγγελία Υλικού"
+          onClose={() => { setProdOrderOpen(false); setProdOrderForm({ product: '', quantity: '' }); }}
+          onSubmit={() => {
+            const productName = (prodOrderForm.product || '').trim();
+            const qtyNum = parseFloat(String(prodOrderForm.quantity).replace(',', '.'));
+            if (!productName) { alert('Επιλέξτε προϊόν'); return; }
+            if (!(qtyNum > 0)) { alert('Συμπληρώστε έγκυρη ποσότητα'); return; }
+            try {
+              const raw = localStorage.getItem('iwm_unit_product_orders');
+              const arr = raw ? JSON.parse(raw) : [];
+              const orders = Array.isArray(arr) ? arr : [];
+              const order = {
+                id: gid(),
+                producer: project.producer,
+                project: project.projectName,
+                projectId: project.id,
+                managerName: project.managerName || '',
+                managerPhone: project.managerPhone || '',
+                product: productName,
+                quantity: qtyNum,
+                date: today(),
+                time: new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                status: '',
+              };
+              const next = [order, ...orders];
+              localStorage.setItem('iwm_unit_product_orders', JSON.stringify(next));
+            } catch {}
+            setProdOrderOpen(false);
+            setProdOrderForm({ product: '', quantity: '' });
+            alert('Η παραγγελία καταχωρήθηκε.');
+          }}
+          submitLabel="Καταχώρηση"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <label className="block">Παραγωγός
+              <input className="border p-1 w-full bg-gray-50" value={project.producer} readOnly />
+            </label>
+            <label className="block">Έργο
+              <input className="border p-1 w-full bg-gray-50" value={project.projectName} readOnly />
+            </label>
+            <label className="block">Μονάδα
+              <input className="border p-1 w-full bg-gray-50" value={project.unit || ''} readOnly />
+            </label>
+            <div />
+            <label className="block">Προϊόν
+              <select className="border p-1 w-full rounded" value={prodOrderForm.product} onChange={(e:any)=> setProdOrderForm(f => ({ ...f, product: e.target.value }))}>
+                <option value="">— Επιλογή —</option>
+                {A(unitProducts).length === 0 ? (
+                  <option value="" disabled>Δεν υπάρχουν διαθέσιμα προϊόντα</option>
+                ) : (
+                  unitProducts.map((p:any) => (<option key={p.id} value={p.name}>{p.name} {p.price ? `— €${p.price}` : ''}</option>))
+                )}
+              </select>
+            </label>
+            <label className="block">Ποσότητα
+              <input className="border p-1 w-full rounded" inputMode="decimal" placeholder="π.χ. 10" value={prodOrderForm.quantity} onChange={(e:any)=> setProdOrderForm(f => ({ ...f, quantity: e.target.value }))} />
+            </label>
+          </div>
+          {A(unitProducts).length === 0 && (
+            <div className="mt-2 text-xs text-gray-500">Δεν έχουν οριστεί προϊόντα από τη Μονάδα.</div>
+          )}
+        </Modal>
       )}
 
       {subTab === 'collective' && (
@@ -995,11 +1138,12 @@ const ProjectView = ({ project, transports, onBack }: any) => {
  
 
 /******** producer ********/
-const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRejectTransport, onOpenProject, onRequestTransfer, onCancelRequest, notifications, onJump, deepLink }: any) => {
+const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRejectTransport, onOpenProject, onRequestTransfer, onCancelRequest, notifications, onJump, deepLink, onClearTransNew, onClearProjectsNew }: any) => {
   const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [tab, setTab] = useState('projects');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [subTab, setSubTab] = useState('active');
   const [projSubTab, setProjSubTab] = useState<'active' | 'completed'>('active');
   const [showProjectFilters, setShowProjectFilters] = useState(false);
@@ -1047,9 +1191,8 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
   };
 
   const tabs = [
-    { key: 'projects', label: 'Έργα', count: 0 },
-    { key: 'requests', label: 'Αιτήματα', count: reqFromTransporter.length + reqFromProducer.length },
-    { key: 'transfers', label: 'Μεταφορές', count: pendingActive.length },
+    { key: 'projects', label: 'Έργα', count: A(projects).filter((p:any)=> !!p.isNew).length },
+    { key: 'transfers', label: 'Μεταφορές', count: A(transports).filter((t:any)=> !!t.isNew).length },
     { key: 'reports', label: 'Αναφορές', count: 0 },
   ];
 
@@ -1067,11 +1210,35 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-2">
-  <h1 className="text-2xl font-bold">Παραγωγός</h1>
-  <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'producer')} onJump={onJump} />
+        <h1 className="text-2xl font-bold">Παραγωγός</h1>
+        <div className="flex items-center gap-3">
+          <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'producer')} onJump={onJump} />
+          <div className="relative">
+            <button aria-label="Μενού" title="Μενού" onClick={() => setMenuOpen(v => !v)} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">☰</button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg z-20">
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); alert('Προφίλ'); }}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('requests'); }}>Αιτήματα</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600" onClick={() => { setMenuOpen(false); alert('Αποσύνδεση'); }}>Αποσύνδεση</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <TabBar tabs={tabs} active={tab} onChange={(k: string) => setTab(typeof k === 'string' ? k : 'aitimata')} />
+      {tab !== 'requests' && (
+  <TabBar tabs={tabs} active={tab} onChange={(k: string) => { const key = typeof k === 'string' ? k : 'aitimata'; if (key==='transfers') { onClearTransNew && onClearTransNew(); } if (key==='projects') { onClearProjectsNew && onClearProjectsNew(); } setTab(key); }} />
+      )}
+      {tab === 'requests' && (
+        <div className="mb-3">
+          <button
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded border bg-white hover:bg-gray-50"
+            onClick={() => setTab('projects')}
+          >
+            ← Πίσω
+          </button>
+        </div>
+      )}
       {false && tab === 'transfers' && (
         <FilterBar producers={uniqueProducers(projects)} projects={projectsByProducer(projects, myProducer)} value={filter} onChange={setFilter} showProject={true} showProducer={false} />
       )}
@@ -1320,7 +1487,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             let list: any[] = [];
             if (reqSubTab === 'all') list = [...reqFromTransporter, ...reqFromProducer].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
             if (reqSubTab === 'transfers') list = reqFromTransporter;
-            if (reqSubTab === 'bins') list = reqFromProducer.filter((t: any) => t.requestType === 'empty-bin' || t.requestType === 'full-pickup' || t.requestType === 'change-bin');
+            if (reqSubTab === 'bins') list = reqFromProducer.filter((t: any) => t.requestType === 'new-bin' || t.requestType === 'move-bin' || t.requestType === 'change-bin');
             // For 'all' view keep both; for 'transfers' show only transporter-created, for 'bins' show only producer bin-related requests
             return (
               <div className="bg-white border rounded p-3">
@@ -1344,25 +1511,28 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                         <td className="border text-center">{t.project}</td>
                         <td className="border text-center">{t.address}</td>
                         <td className="border text-center">{fmt(t.date)}</td>
-                        <td className="border text-center text-left">
-                          <div className="text-xs text-gray-700">
-                            {t.requestType === 'empty-bin' ? (
-                              <div className="font-medium">Ο Παραγωγός χρειάζεται κενό κάδο για το "{t.project}"</div>
-                            ) : t.requestType === 'full-pickup' ? (
-                              <div className="font-medium">Ο κάδος στο έργο "{t.project}" του παραγωγού γέμισε</div>
-                            ) : t.requestType === 'change-bin' ? (
-                              <div className="font-medium">Αίτημα Αλλαγής Κάδου για το "{t.project}"</div>
-                            ) : (
-                              <div className="font-medium">Ο Παραγωγός χρειάζεται μεταφορά για το "{t.project}"</div>
-                            )}
+                        <td className="border text-left align-top">
+                          <div className="text-xs text-gray-700 py-2">
+                            {(() => {
+                              const typeLabel = t.requestType === 'new-bin' ? 'Αίτημα Νέου Κάδου' : t.requestType === 'move-bin' ? 'Αίτημα Μεταφοράς Κάδου' : t.requestType === 'change-bin' ? 'Αίτημα Αλλαγής Κάδου' : 'Αίτημα';
+                              return <div className="font-medium">{typeLabel} για το "{t.project}"</div>;
+                            })()}
                             <div className="mt-2">
-                              <Badge tone="orange"><Clock className="w-3 h-3" /><span className="ml-1">Αναμονή αποδοχής μεταφορέα</span></Badge>
+                              {t.acceptedByTransporter ? (
+                                <Badge tone="green"><CheckCircle2 className="w-3 h-3" /><span className="ml-1">Αποδεκτό από μεταφορέα</span></Badge>
+                              ) : (
+                                <Badge tone="orange"><Clock className="w-3 h-3" /><span className="ml-1">Αναμονή αποδοχής μεταφορέα</span></Badge>
+                              )}
                             </div>
                           </div>
                         </td>
-                        <td className="border text-center">
+                        <td className="border text-center align-top">
                           {t.fromProducer ? (
-                            <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(t.projectId, t.requestType)}>Ακύρωση</Btn>
+                            t.acceptedByTransporter ? (
+                              <span>—</span>
+                            ) : (
+                              <Btn className="bg-red-600 text-white" onClick={() => onCancelRequest && onCancelRequest(t.projectId, t.requestType)}>Ακύρωση</Btn>
+                            )
                           ) : (
                             <span>—</span>
                           )}
@@ -1403,6 +1573,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             <thead className="bg-gray-100 text-sm">
               <tr>
                 <th className="border px-2">Α/Α</th>
+                <th className="border px-2">ID Έργου</th>
                 <th className="border px-2">Έργο</th>
                 <th className="border px-2">Διεύθυνση</th>
                 <th className="border px-2">Έναρξη</th>
@@ -1423,7 +1594,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                 if (fp.length === 0) {
                   return (
                     <tr>
-                      <td className="border text-center p-4 text-gray-500" colSpan={9}>
+                      <td className="border text-center p-4 text-gray-500" colSpan={10}>
                         {projSubTab === 'active' ? 'Δεν υπάρχουν ενεργά έργα' : 'Δεν υπάρχουν ολοκληρωμένα έργα'}
                       </td>
                     </tr>
@@ -1432,6 +1603,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                 return fp.map((p: any, i: number) => (
                   <tr key={p.id} className={p.isNew ? 'bg-green-50' : ''}>
                     <td className="border text-center">{i + 1}</td>
+                    <td className="border text-center">Σε εκκρεμότητα</td>
                     <td className="border text-blue-700 underline cursor-pointer" onClick={() => onOpenProject(p)}>{p.projectName}</td>
                     <td className="border text-center">{p.address}</td>
                     <td className="border text-center">{fmt(p.start)}</td>
@@ -1584,12 +1756,13 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
 };
 
 /******** transporter (web) ********/
-const Transporter = ({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, onRejectRequest, addNotif, deepLink, onAddProject }: any) => {
+const Transporter = ({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, onRejectRequest, addNotif, deepLink, onAddProject, onClearTransNew, onClearProjectsNew }: any) => {
   const [tab, setTab] = useState('transfers');
   const [show, setShow] = useState(false);
   const opts = useMemo(() => plates(), []);
   const [form, setForm] = useState({ producer: '', project: '', address: '', unit: '', vehicle: '', date: today(), time: '08:00', viaStation: false });
   const [acceptModal, setAcceptModal] = useState<any>({ open: false, row: null, vehicle: '', date: today(), time: '08:00' });
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const onSubmit = () => {
     if (!form.producer || !form.project) return;
@@ -1601,7 +1774,19 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
     setForm({ producer: '', project: '', address: '', unit: '', vehicle: '', date: today(), time: '08:00', viaStation: false });
   };
 
-  const producerReq = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && t.fromProducer);
+  const producerReq = (() => {
+    const msDay = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    return A(transports)
+      .filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && t.fromProducer)
+      .filter((t: any) => {
+        if (!t.acceptedByTransporter) return true; // pending: always show
+        const at = t.acceptedByTransporterAt ? new Date(t.acceptedByTransporterAt) : null;
+        if (!at || isNaN(at.getTime())) return true; // missing/invalid timestamp: keep
+        const diff = (now.getTime() - at.getTime()) / msDay;
+        return diff < 3; // keep for 3 days
+      });
+  })();
   const carrierReq = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && !t.fromProducer);
   const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
 
@@ -1613,15 +1798,16 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
   const [addExternalOpen, setAddExternalOpen] = useState(false);
   const [extForm, setExtForm] = useState({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '' });
   const tabs = [
-    { key: 'aitimata', label: 'Αιτήματα', count: producerReq.length + carrierReq.length },
-    { key: 'projects', label: 'Έργα', count: tProjects.length },
-    { key: 'transfers', label: 'Μεταφορές', count: pending.length },
-    { key: 'notifications', label: 'Ειδοποιήσεις', count: transNotifs.filter((n: any) => !n.read).length },
+    { key: 'aitimata', label: 'Αιτήματα', count: A(transports).filter((t:any)=> !!t.isNew).length },
+    { key: 'projects', label: 'Έργα', count: A(projects).filter((p:any)=> !!p.isNew).length },
+    { key: 'transfers', label: 'Έντυπα Αναγνώρισης και Παρακολούθησης', count: A(transports).filter((t:any)=> !!t.isNew).length },
   ];
 
   const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
   const [customVehicle, setCustomVehicle] = useState('');
+  const [showTransferFilters, setShowTransferFilters] = useState(false);
+  const [transfersSubTab, setTransfersSubTab] = useState<'pending' | 'completed'>('pending');
 
   // deep link handling
   React.useEffect(() => {
@@ -1643,8 +1829,8 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
           <th className="border px-2">Παραγωγός</th>
           <th className="border px-2">Έργο</th>
           <th className="border px-2">Διεύθυνση</th>
-          <th className="border px-2">Μονάδα</th>
           <th className="border px-2">Ημ/νία</th>
+          <th className="border px-2">Αίτημα</th>
           <th className="border px-2">Κατάσταση</th>
           <th className="border px-2">Ενέργεια</th>
         </tr>
@@ -1652,27 +1838,43 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
       <tbody>
         {A(rows).length > 0 ? (
           A(rows).map((t: any, i: number) => (
-            <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
+            <tr key={t.id} className={`${t.isNew ? 'bg-green-50' : ''} ${t.requestType === 'change-bin' ? 'bg-yellow-50' : ''}`}>
               <td className="border text-center">{i + 1}</td>
               <td className="border text-center">{t.producer}</td>
               <td className="border text-center">{t.project}</td>
               <td className="border text-center">{t.address}</td>
-              <td className="border text-center">{t.unit}</td>
               <td className="border text-center">{fmt(t.date)}</td>
-              <td className="border text-center text-blue-700">{t.status}</td>
+              <td className="border text-center">
+                {t.requestType === 'new-bin' ? 'Νέος Κάδος' : t.requestType === 'move-bin' ? 'Μεταφορά Κάδου' : t.requestType === 'change-bin' ? 'Αλλαγή Κάδου' : (String(t.status || '').replace(/^Αίτη[σμ]α Παραγωγού\s*—\s*/i, '').replace(/Αίτη[σμ]α Παραγωγού/i, '').trim() || '—')}
+              </td>
+              <td className="border text-center">
+                {t.acceptedByTransporter ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Αποδέχτηκε</span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">Εκκρεμές</span>
+                )}
+              </td>
               <td className="border text-center">
                 {showAcceptBtn ? (
                   <div className="flex items-center justify-center gap-2">
-                    <Btn className="bg-green-600 text-white" onClick={() => {
-                      // finalize immediately for producer change-bin requests
-                      if (t.fromProducer && t.requestType === 'change-bin') {
-                        onAcceptRequest && onAcceptRequest(t, { vehicle: plates()[0], date: t.date || today(), time: t.time || '08:00' });
-                        return;
-                      }
-                      const pr = A(projects).find((p: any) => p.id === t.projectId);
-                      setAcceptModal({ open: true, row: t, vehicle: plates()[0], date: t.date || today(), time: t.time || '08:00', projectInfo: pr });
-                    }}>Αποδοχή</Btn>
-                    <Btn className="bg-red-600 text-white" onClick={() => onRejectRequest && onRejectRequest(t)}>Απόρριψη</Btn>
+                    {t.fromProducer && (t.requestType === 'change-bin' || t.requestType === 'new-bin' || t.requestType === 'move-bin') ? (
+                      t.acceptedByTransporter ? (
+                        <Btn className="bg-gray-200 text-gray-800" onClick={() => onRejectRequest && onRejectRequest(t)}>Ακύρωση</Btn>
+                      ) : (
+                        <>
+                          <Btn className="bg-green-600 text-white" onClick={() => { onAcceptRequest && onAcceptRequest(t); }}>Αποδοχή</Btn>
+                          <Btn className="bg-red-600 text-white" onClick={() => onRejectRequest && onRejectRequest(t)}>Απόρριψη</Btn>
+                        </>
+                      )
+                    ) : (
+                      <>
+                        <Btn className="bg-green-600 text-white" onClick={() => {
+                          const pr = A(projects).find((p: any) => p.id === t.projectId);
+                          setAcceptModal({ open: true, row: t, vehicle: plates()[0], date: t.date || today(), time: t.time || '08:00', projectInfo: pr });
+                        }}>Αποδοχή</Btn>
+                        <Btn className="bg-red-600 text-white" onClick={() => onRejectRequest && onRejectRequest(t)}>Απόρριψη</Btn>
+                      </>
+                    )}
                   </div>
                 ) : '—'}
               </td>
@@ -1688,92 +1890,172 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-2">
-  <h1 className="text-2xl font-bold">Μεταφορέας</h1>
-  <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'transporter')} onJump={onJump} />
+        <h1 className="text-2xl font-bold">Μεταφορέας</h1>
+        <div className="flex items-center gap-3">
+          <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'transporter')} onJump={onJump} />
+          <div className="relative">
+            <button aria-label="Μενού" title="Μενού" onClick={() => setMenuOpen(v => !v)} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">☰</button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg z-20">
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); alert('Προφίλ'); }}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('aitimata'); }}>Αιτήματα</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600" onClick={() => { setMenuOpen(false); alert('Αποσύνδεση'); }}>Αποσύνδεση</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <TabBar tabs={tabs} active={tab} onChange={(k: string) => setTab(typeof k === 'string' ? k : 'aitimata')} />
+  <TabBar tabs={tabs} active={tab} onChange={(k: string) => { const key = typeof k === 'string' ? k : 'aitimata'; if (key==='transfers' || key==='aitimata') { onClearTransNew && onClearTransNew(); } if (key==='projects') { onClearProjectsNew && onClearProjectsNew(); } setTab(key); }} />
 
       {tab === 'aitimata' && (
         <div className="space-y-4">
-          <div className="flex justify-end"><Btn className="bg-blue-600 text-white" onClick={() => setShow(true)}>+ Νέα Μεταφορά</Btn></div>
-
           <div>
             <div className="font-semibold mb-2">Αιτήματα Παραγωγών</div>
             <Table rows={producerReq} emptyText="—" showAcceptBtn />
-          </div>
-          <div>
-            <div className="font-semibold mb-2">Αιτήματα Μεταφορέα</div>
-            <Table rows={carrierReq} emptyText="—" showAcceptBtn={false} />
           </div>
         </div>
       )}
 
       {tab === 'transfers' && (
         <div className="bg-white border rounded p-3 space-y-4">
-          <div>
-            <div className="font-semibold mb-2">Εκκρεμή Μεταφορές</div>
-            <table className="w-full border bg-white text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-2">Α/Α</th>
-                  <th className="border px-2">Παραγωγός</th>
-                  <th className="border px-2">Έργο</th>
-                  <th className="border px-2">Διεύθυνση</th>
-                  <th className="border px-2">Μονάδα</th>
-                  <th className="border px-2">Ημ/νία</th>
-                  <th className="border px-2">Κατάσταση</th>
-                  <th className="border px-2">PDF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pending.length ? pending.map((t: any, i: number) => (
-                  <tr key={t.id}>
-                    <td className="border text-center">{i + 1}</td>
-                    <td className="border text-center">{t.producer}</td>
-                    <td className="border text-center">{t.project}</td>
-                    <td className="border text-center">{t.address}</td>
-                    <td className="border text-center">{t.unit}</td>
-                    <td className="border text-center">{fmt(t.date)}{t.time ? ` • ${t.time}` : ''}</td>
-                    <td className="border text-center text-blue-700">{t.status}</td>
-                    <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
-                  </tr>
-                )) : (
-                  <tr><td className="border text-center p-3" colSpan={8}>—</td></tr>
-                )}
-              </tbody>
-            </table>
+          <div className="flex items-center justify-end gap-2">
+            <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowTransferFilters(v => !v)} title="Φίλτρα">
+              <Filter className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">Φίλτρα</span>
+            </button>
           </div>
+          {showTransferFilters && (
+            <div className="mb-2">
+              <FilterBar producers={uniqueProducers(projects)} projects={projectsByProducer(projects, filter.producer)} value={filter} onChange={setFilter} showProject={true} showProducer={true} />
+            </div>
+          )}
+          {(() => {
+            const rowsAll = applyTransportFilter(transports, projects, filter);
+            const pendingRows = rowsAll.filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
+            const completedRows = rowsAll.filter((t: any) => t.receivedByUnit);
+            return (
+              <div className="space-y-3">
+                <div className="inline-flex bg-gray-100 p-1 rounded-full">
+                  <button onClick={() => setTransfersSubTab('pending')} className={`px-3 py-1.5 rounded-full text-sm ${transfersSubTab === 'pending' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Εκκρεμείς Μεταφορές</button>
+                  <button onClick={() => setTransfersSubTab('completed')} className={`px-3 py-1.5 rounded-full text-sm ${transfersSubTab === 'completed' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Ολοκληρωμένες μεταφορές</button>
+                </div>
 
-          <div>
-            <div className="font-semibold mb-2">Ολοκληρωμένες Μεταφορές</div>
-            <table className="w-full border bg-white text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-2">Α/Α</th>
-                  <th className="border px-2">Παραγωγός</th>
-                  <th className="border px-2">Έργο</th>
-                  <th className="border px-2">Ημ/νία</th>
-                  <th className="border px-2">PDF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {A(transports).filter((t: any) => t.receivedByUnit).length ? (
-                  A(transports).filter((t: any) => t.receivedByUnit).map((t: any, i: number) => (
-                    <tr key={t.id}>
-                      <td className="border text-center">{i + 1}</td>
-                      <td className="border text-center">{t.producer}</td>
-                      <td className="border text-center">{t.project}</td>
-                      <td className="border text-center">{fmt(t.unitDate)}</td>
-                      <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr><td className="border text-center p-3" colSpan={5}>—</td></tr>
+                {transfersSubTab === 'pending' && (
+                  <table className="w-full border bg-white text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="border px-2">Α/Α</th>
+                        <th className="border px-2">Παραγωγός</th>
+                        <th className="border px-2">Έργο</th>
+                        <th className="border px-2">Διεύθυνση</th>
+                        <th className="border px-2">Μονάδα</th>
+                        <th className="border px-2">Ημ/νία</th>
+                        <th className="border px-2">Αρ. Αυτοκινήτου</th>
+                        <th className="border px-2">Κατάσταση</th>
+                        <th className="border px-2">PDF</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingRows.length ? (
+                        pendingRows.map((t: any, i: number) => (
+                          <tr key={t.id}>
+                            <td className="border text-center">{i + 1}</td>
+                            <td className="border text-center">{t.producer}</td>
+                            <td className="border text-center">{t.project}</td>
+                            <td className="border text-center">{t.address}</td>
+                            <td className="border text-center">{t.unit}</td>
+                            <td className="border text-center">{fmt(t.date)}{t.time ? ` • ${t.time}` : ''}</td>
+                            <td className="border text-center">{t.vehicle || '—'}</td>
+                            <td className="border text-center text-blue-700">{t.status}</td>
+                            <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td className="border text-center p-3" colSpan={9}>—</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 )}
-              </tbody>
-            </table>
-          </div>
+
+                {transfersSubTab === 'completed' && (
+                  <>
+                  <div className="flex items-center justify-end mb-2">
+                    <button className="px-3 py-1.5 rounded bg-green-600 text-white text-sm" onClick={() => setExportOpen(true)}>Ετήσια Έκθεση</button>
+                  </div>
+                  <table className="w-full border bg-white text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="border px-2">Α/Α</th>
+                        <th className="border px-2">Παραγωγός</th>
+                        <th className="border px-2">Έργο</th>
+                        <th className="border px-2">Ημ/νία</th>
+                        <th className="border px-2">Μονάδα</th>
+                        <th className="border px-2">Αρ. Αυτοκινήτου</th>
+                        <th className="border px-2">Κωδικός ΕΚΑ</th>
+                        <th className="border px-2">Βάρος (tn)</th>
+                        <th className="border px-2">PDF</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedRows.length ? (
+                        completedRows.map((t: any, i: number) => (
+                          <tr key={t.id}>
+                            <td className="border text-center">{i + 1}</td>
+                            <td className="border text-center">{t.producer}</td>
+                            <td className="border text-center">{t.project}</td>
+                            <td className="border text-center">{fmt(t.unitDate)}</td>
+                            <td className="border text-center">{t.unit || '-'}</td>
+                            <td className="border text-center">{t.vehicle || '-'}</td>
+                            <td className="border text-center">{t.ekaCategory || '-'}</td>
+                            <td className="border text-center">{t.weight || '-'}</td>
+                            <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr><td className="border text-center p-3" colSpan={9}>—</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                  {exportOpen && (() => {
+                    const YearModal = ({ onClose, onSubmit }: any) => {
+                      const [y, setY] = React.useState(new Date().getFullYear());
+                      return (
+                        <Modal title="Ετήσια Έκθεση" onClose={onClose} onSubmit={() => onSubmit(y)}>
+                          <div className="text-sm mb-3">Επίλεξε έτος για εξαγωγή των ολοκληρωμένων μεταφορών σε CSV (Excel).</div>
+                          <div className="flex items-center gap-2">
+                            <button className="px-2 py-1 border rounded" onClick={() => setY((p: number) => p - 1)}>-</button>
+                            <input type="number" className="border p-1 w-28 text-center" value={String(y)} onChange={(e: any) => setY(Number(e.target.value || new Date().getFullYear()))} />
+                            <button className="px-2 py-1 border rounded" onClick={() => setY((p: number) => p + 1)}>+</button>
+                          </div>
+                        </Modal>
+                      );
+                    };
+                    return (
+                      <YearModal onClose={() => setExportOpen(false)} onSubmit={(selectedYear: number) => {
+                        const rows = completedRows.filter((t: any) => {
+                          const yr = t.unitDate ? new Date(t.unitDate).getFullYear() : null;
+                          return yr === selectedYear;
+                        }).map((t: any, i: number) => ({
+                          index: i + 1,
+                          producer: t.producer,
+                          project: t.project,
+                          unitDate: t.unitDate,
+                          unit: t.unit || '-',
+                          vehicle: t.vehicle || '-',
+                          eka: t.ekaCategory || '-',
+                          weight: t.weight || '-',
+                        }));
+                        downloadCSV(`transporter_completed_${selectedYear}_${Date.now()}.csv`, rows, ['index','producer','project','unitDate','unit','vehicle','eka','weight']);
+                        setExportOpen(false);
+                      }} />
+                    );
+                  })()}
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -1794,9 +2076,9 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
                 <button onClick={() => setProjSubTab('external')} className={`px-3 py-1.5 rounded-full text-sm ${projSubTab === 'external' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα εκτός IWM</button>
               </div>
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">Εμφανίζονται: <span className="font-medium">{projSubTab === 'iwm' ? 'Έργα IWM' : 'Έργα εκτός IWM'}</span> • <span className="font-medium">{list.length}</span></div>
+                <div className="text-sm text-gray-700">Σύνολο: <span className="font-medium">{list.length}</span></div>
                 {projSubTab === 'external' && (
-                  <button className="px-3 py-2 rounded bg-white border text-sm" onClick={() => setAddExternalOpen(true)}>+ Προσθήκη Έργου (εκτός IWM)</button>
+                  <button className="px-3 py-2 rounded bg-blue-600 text-white text-sm" onClick={() => setAddExternalOpen(true)}>+ Προσθήκη Έργου (εκτός IWM)</button>
                 )}
               </div>
               <table className="w-full border bg-white text-sm">
@@ -1834,14 +2116,6 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
                 <Modal title="Προσθήκη Έργου (εκτός IWM)" onClose={() => setAddExternalOpen(false)} onSubmit={() => {
                   if (!extForm.producer || !extForm.projectName) return alert('Συμπλήρωσε Παραγωγό και Όνομα Έργου');
                   if (!extForm.unit) return alert('Συμπλήρωσε Μονάδα');
-                  let transporterName = myTransporter;
-                  let offPlatformTransporter = false;
-                  if ((extForm as any).transporterMode === 'other') {
-                    const name = ((extForm as any).otherTransporter || '').trim();
-                    if (!name) return alert('Συμπλήρωσε όνομα μεταφορέα (εκτός πλατφόρμας)');
-                    transporterName = name;
-                    offPlatformTransporter = true;
-                  }
                   const obj: any = {
                     id: gid(),
                     producer: extForm.producer,
@@ -1850,8 +2124,8 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
                     unit: extForm.unit || '',
                     managerName: extForm.managerName || '',
                     managerPhone: extForm.managerPhone || '',
-                    transporter: transporterName,
-                    offPlatformTransporter,
+                    transporter: myTransporter,
+                    offPlatformTransporter: false,
                     creatorTransporter: myTransporter,
                     external: true,
                     offline: true,
@@ -1861,7 +2135,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
                   };
                   onAddProject && onAddProject(obj);
                   setAddExternalOpen(false);
-                  setExtForm({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '', transporterMode: 'self', otherTransporter: '' } as any);
+                  setExtForm({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '' });
                   setProjSubTab('external');
                 }}>
                   <label className="block text-sm">Παραγωγός
@@ -1879,22 +2153,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
                       {UNITS.map((u: string) => (<option key={u} value={u}>{u}</option>))}
                     </select>
                   </label>
-                  <div className="text-sm">
-                    <div className="mb-1 font-medium">Μεταφορέας</div>
-                    <div className="flex items-center gap-4 mb-2">
-                      <label className="inline-flex items-center gap-1">
-                        <input type="radio" name="ext_trans_mode_web" value="self" checked={(extForm as any).transporterMode === 'self'} onChange={() => setExtForm({ ...extForm, transporterMode: 'self' } as any)} />
-                        <span>Είμαι ο μεταφορέας</span>
-                      </label>
-                      <label className="inline-flex items-center gap-1">
-                        <input type="radio" name="ext_trans_mode_web" value="other" checked={(extForm as any).transporterMode === 'other'} onChange={() => setExtForm({ ...extForm, transporterMode: 'other' } as any)} />
-                        <span>Άλλος (εκτός πλατφόρμας)</span>
-                      </label>
-                    </div>
-                    {(extForm as any).transporterMode === 'other' && (
-                      <input className="border p-1 w-full" placeholder="Όνομα μεταφορέα (εκτός πλατφόρμας)" value={(extForm as any).otherTransporter} onChange={(e: any) => setExtForm({ ...extForm, otherTransporter: e.target.value } as any)} />
-                    )}
-                  </div>
+                  {/* Δεν ζητάμε μεταφορέα στο web modal του μεταφορέα: ο μεταφορέας είναι πάντα ο τρέχων χρήστης. */}
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block text-sm">Υπεύθυνος (προαιρετικό)
                       <input className="border p-1 w-full" placeholder="Ονοματεπώνυμο" value={extForm.managerName} onChange={(e: any) => setExtForm({ ...extForm, managerName: e.target.value })} />
@@ -1910,24 +2169,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
         })()
       )}
 
-      {tab === 'notifications' && (
-        <div className="bg-white border rounded p-3 space-y-2">
-          <div className="font-semibold mb-2">Ειδοποιήσεις</div>
-          {transNotifs.length === 0 ? (
-            <div className="text-center text-gray-400 py-6">Καμία ειδοποίηση</div>
-          ) : (
-            transNotifs.map((n: any) => (
-              <div key={n.id} className={`p-2 rounded ${n.read ? 'bg-gray-50' : 'bg-blue-50'} border`}>
-                <div className="font-semibold">{n.title}</div>
-                <div className="text-xs text-gray-600">{n.body}</div>
-                <div className="text-right mt-1">
-                  <Btn className="bg-blue-600 text-white" onClick={() => onJump && onJump(n.id)}>Μετάβαση</Btn>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      {/* Notifications tab removed from transporter web per requirements */}
 
       {show && (
         <Modal title="Νέα Μεταφορά" onClose={() => setShow(false)} onSubmit={onSubmit}>
@@ -2011,17 +2253,34 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
 };
 
 /******** unit ********/
-const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onReceive, onFinalize, notifications, onJump, onOpenProject, deepLink }: any) => {
+const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onReceive, onFinalize, notifications, onJump, onOpenProject, deepLink, onClearTransNew, onClearProjectsNew, onClearTransNewWhere }: any) => {
   const [tab, setTab] = useState('projects');
   const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Unit Products (catalog): simple local list of { id, name, price }
+  const [unitProducts, setUnitProducts] = useState<any[]>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_products'); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_products', JSON.stringify(unitProducts)); } catch {} }, [unitProducts]);
+  const [newProd, setNewProd] = useState<{ name: string; price: string }>({ name: '', price: '' });
+  // Unit Product Orders (incoming from producers) — placeholder until producer flow is wired
+  const [unitOrders, setUnitOrders] = useState<any[]>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_product_orders'); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_product_orders', JSON.stringify(unitOrders)); } catch {} }, [unitOrders]);
+  const acceptOrder = (id: string) => setUnitOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Αποδοχή' } : o));
+  const rejectOrder = (id: string) => setUnitOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Απόρριψη' } : o));
   const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit);
   const done = A(transports).filter((t: any) => t.receivedByUnit);
   const tabs = [
-    { key: 'projects', label: 'Έργα', count: A(projects).filter((p: any) => p.agreement === 'Σε εκκρεμότητα').length },
-    { key: 'transfers', label: 'Μεταφορές', count: pending.length },
-    { key: 'stats', label: 'Στατιστικά & Αναμενόμενες' },
+    { key: 'projects', label: 'Έργα', count: A(projects).filter((p: any) => !!p.isNew).length },
+    { key: 'weigh', label: 'Ζύγιση' },
+    { key: 'transfers', label: 'Μεταφορές', count: A(transports).filter((t: any) => !!t.isNew).length },
+    { key: 'slips', label: 'Δελτία Παραλαβής' },
+    { key: 'products', label: 'Προϊόντα' },
+    { key: 'stats', label: 'Στατιστικά' },
   ];
 
   const [weighOpen, setWeighOpen] = useState(false);
@@ -2029,6 +2288,22 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
   const [unitProjSub, setUnitProjSub] = useState<'with' | 'without'>('with');
   // weighData holds id, weight, eka
   const [weighData, setWeighData] = useState<any>({ id: null as any, weight: '', eka: EKA[0].code });
+  // Stats tabs/subtabs state
+  const [statsTab, setStatsTab] = useState<'overview' | 'projects' | 'deliveries' | 'forecast' | 'finance' | 'alerts'>('overview');
+  const [statsSub, setStatsSub] = useState<string>('kpis');
+  // Unit Transfers subtabs
+  const [unitTransfersSubTab, setUnitTransfersSubTab] = useState<'open' | 'awaiting' | 'completed'>('open');
+  React.useEffect(() => {
+    const defaults: Record<string, string> = {
+      overview: 'kpis',
+      projects: 'progress',
+      deliveries: 'today-week',
+      forecast: 'next-weeks',
+      finance: 'by-project',
+      alerts: 'notifications',
+    };
+    setStatsSub(defaults[statsTab] || 'kpis');
+  }, [statsTab]);
 
   const openWeigh = (t: any) => {
     // simulate weighing with a random tonnage between 5.0 and 12.0
@@ -2056,21 +2331,35 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-2">
-  <h1 className="text-2xl font-bold">Μονάδα</h1>
-  <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'unit')} onJump={onJump} />
+        <h1 className="text-2xl font-bold">Μονάδα</h1>
+        <div className="flex items-center gap-3">
+          <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'unit')} onJump={onJump} />
+          <div className="relative">
+            <button aria-label="Μενού" title="Μενού" onClick={() => setMenuOpen(v => !v)} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">☰</button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg z-20">
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); alert('Προφίλ'); }}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('projects'); }}>Αιτήματα</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600" onClick={() => { setMenuOpen(false); alert('Αποσύνδεση'); }}>Αποσύνδεση</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-  <TabBar tabs={tabs} active={tab} onChange={(k: string) => setTab(typeof k === 'string' ? k : 'projects')} />
-  <div className="flex items-center justify-end gap-2 mb-2">
-    {tab === 'stats' && (
+  <TabBar tabs={tabs} active={tab} onChange={(k: string) => { const key = typeof k === 'string' ? k : 'projects'; if (key==='transfers') { onClearTransNew && onClearTransNew(); } if (key==='projects') { onClearProjectsNew && onClearProjectsNew(); } setTab(key); }} />
+          <div className="flex items-center justify-end gap-2 mb-2">
+    {tab === 'slips' && (
       <Btn className="bg-blue-600 text-white" onClick={() => setExportOpen(true)}>Ετήσια Έκθεση</Btn>
     )}
-    <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowFilters(v => !v)} title="Φίλτρα">
-      <Filter className="w-4 h-4" />
-      <span className="text-sm hidden sm:inline">Φίλτρα</span>
-    </button>
+    {tab !== 'weigh' && (
+      <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowFilters(v => !v)} title="Φίλτρα">
+        <Filter className="w-4 h-4" />
+        <span className="text-sm hidden sm:inline">Φίλτρα</span>
+      </button>
+    )}
   </div>
-  {showFilters && (
+  {showFilters && tab !== 'weigh' && (
     <div className="mb-2">
       <FilterBar producers={uniqueProducers(projects)} projects={projectsByProducer(projects, filter.producer)} value={filter} onChange={setFilter} showProject={true} />
     </div>
@@ -2134,112 +2423,307 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
         </div>
       )}
 
+      {tab === 'weigh' && (
+        <div>
+          <UnitTabletApp
+            projects={projects}
+            transports={transports}
+            onReceive={onReceive}
+            onFinalize={onFinalize}
+            lockTab="weigh"
+            hideChrome={true}
+            onNavigateUnit={(toTab: 'projects'|'weigh'|'transfers'|'slips'|'stats', subTab?: 'open'|'awaiting'|'completed') => {
+              setTab(toTab);
+              if (toTab === 'transfers' && subTab) setUnitTransfersSubTab(subTab);
+            }}
+          />
+        </div>
+      )}
+
       {tab === 'transfers' && (
         <div className="bg-white border rounded p-3">
-          <div className="font-semibold mb-2">Ανοιχτές Μεταφορές</div>
-          <table className="w-full border text-sm mb-6">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-2">Α/Α</th>
-                <th className="border px-2">Παραγωγός</th>
-                <th className="border px-2">Έργο</th>
-                <th className="border px-2">Συμφωνία</th>
-                <th className="border px-2">Διεύθυνση</th>
-                <th className="border px-2">Μεταφορέας</th>
-                <th className="border px-2">Αρ. Οχήματος</th>
-                <th className="border px-2">Παραλαβή</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).length === 0 ? (
-                <tr><td className="border text-center p-2" colSpan={8}>—</td></tr>
-              ) : (
-                applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).map((t: any, i: number) => {
-                  const prj = A(projects).find((p: any) => p.id === t.projectId);
-                  return (
-                    <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
-                      <td className="border text-center">{i + 1}</td>
-                      <td className="border text-center"><div className="font-semibold">{t.producer}</div></td>
-                      <td className="border text-center">{t.project}</td>
-                      <td className="border text-center">{(prj && prj.agreement) || '—'}</td>
-                      <td className="border text-center">{t.address}</td>
-                      <td className="border text-center">{prj?.transporter || '—'}</td>
-                      <td className="border text-center">{t.vehicle || '—'}</td>
-                      <td className="border text-center"><Btn className="bg-green-600 text-white" onClick={() => openWeigh(t)}>Παραλαβή</Btn></td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+          {/* Subtabs for transfers */}
+          {(() => {
+            const filtered = applyTransportFilter(transports, projects, filter);
+            const openNewCount = filtered.filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit && t.isNew).length;
+            const awaitingNewCount = filtered.filter((t: any) => t.deliveredToUnit && !t.receivedByUnit && t.isNew).length;
+            const completedCount = filtered.filter((t: any) => t.receivedByUnit).length;
+            const completedNewCount = filtered.filter((t: any) => t.receivedByUnit && t.isNew).length;
+            return (
+              <div className="flex items-center gap-2 mb-3">
+                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit); setUnitTransfersSubTab('open'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'open' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                  <span className="inline-flex items-center gap-2">Ανοιχτές{openNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{openNewCount}</span>}</span>
+                </button>
+                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.deliveredToUnit && !t.receivedByUnit); setUnitTransfersSubTab('awaiting'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'awaiting' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                  <span className="inline-flex items-center gap-2">Παραδόθηκαν{awaitingNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-red-600 text-white">{awaitingNewCount}</span>}</span>
+                </button>
+                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> !!t.receivedByUnit); setUnitTransfersSubTab('completed'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'completed' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                  <span className="inline-flex items-center gap-2">Ολοκληρωμένες{completedNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{completedNewCount}</span>}</span>
+                </button>
+              </div>
+            );
+          })()}
 
-          <div className="font-semibold mb-2">Εκκρεμή για υπογραφή παραλαβής</div>
-          <table className="w-full border text-sm mb-6">
+          {unitTransfersSubTab === 'open' && (
+            <>
+            <div className="font-semibold mb-2">Ανοιχτές Μεταφορές (Αναμένονται για Παραλαβή)</div>
+            <table className="w-full border text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-2">Α/Α</th>
+                  <th className="border px-2">Παραγωγός</th>
+                  <th className="border px-2">Έργο</th>
+                  <th className="border px-2">Συμφωνία</th>
+                  <th className="border px-2">Διεύθυνση</th>
+                  <th className="border px-2">Μεταφορέας</th>
+                  <th className="border px-2">Αρ. Οχήματος</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).length === 0 ? (
+                  <tr><td className="border text-center p-2" colSpan={7}>—</td></tr>
+                ) : (
+                  applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).map((t: any, i: number) => {
+                    const prj = A(projects).find((p: any) => p.id === t.projectId);
+                    return (
+                      <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
+                        <td className="border text-center">{i + 1}</td>
+                        <td className="border text-center"><div className="font-semibold">{t.producer}</div></td>
+                        <td className="border text-center">{t.project}</td>
+                        <td className="border text-center">{(prj && prj.agreement) || '—'}</td>
+                        <td className="border text-center">{t.address}</td>
+                        <td className="border text-center">{prj?.transporter || '—'}</td>
+                        <td className="border text-center">{t.vehicle || '—'}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+            </>
+          )}
+
+          {unitTransfersSubTab === 'awaiting' && (
+            (() => {
+              const rows = applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit);
+              const latestId = (() => {
+                if (rows.length === 0) return null;
+                let best: any = null;
+                let bestTs = -Infinity;
+                for (const r of rows) {
+                  const d = r.unitDate || '1970-01-01';
+                  const tm = (r.unitTime || '00:00').padStart(5, '0');
+                  const ts = new Date(`${d}T${tm.length === 5 ? tm+':00' : tm}`).getTime();
+                  if (ts >= bestTs) { bestTs = ts; best = r; }
+                }
+                return best ? best.id : null;
+              })();
+              return (
+                <>
+                  <div className="font-semibold mb-2">Παραδόθηκαν (Εκκρεμούν Υπογραφές)</div>
+                  <table className="w-full border text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="border px-2">Α/Α</th>
+                        <th className="border px-2">Παραγωγός</th>
+                        <th className="border px-2">Έργο</th>
+                        <th className="border px-2">Διεύθυνση</th>
+                        <th className="border px-2">Ημ/νία Παράδοσης</th>
+                        <th className="border px-2">Ώρα Παράδοσης</th>
+                        <th className="border px-2">Κατάσταση</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.length === 0 ? (
+                        <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
+                      ) : (
+                        rows.map((t: any, i: number) => (
+                          <tr key={t.id} className={t.id === latestId ? 'bg-green-50' : ''}>
+                            <td className="border text-center">{i + 1}</td>
+                            <td className="border text-center">{t.producer}</td>
+                            <td className="border text-center">{t.project}</td>
+                            <td className="border text-center">{t.address}</td>
+                            <td className="border text-center">{fmt(t.unitDate)}</td>
+                            <td className="border text-center">{t.unitTime || '—'}</td>
+                            <td className="border text-center text-blue-700">
+                              {t.status === 'Completed' ? (
+                                'Ολοκληρώθηκε'
+                              ) : t.status === 'Waiting for transporter signature' ? (
+                                'Αναμονή για υπογραφή μεταφορέα'
+                              ) : t.status === 'Waiting for unit signature' ? (
+                                <span title="Πήγαινε στο tablet για υπογραφή">Αναμονή για υπογραφή μονάδας</span>
+                              ) : t.status === 'Waiting' ? (
+                                'Αναμονή'
+                              ) : (
+                                t.status || 'Αναμονή υπογραφής'
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </>
+              );
+            })()
+          )}
+
+          {unitTransfersSubTab === 'completed' && (
+            <>
+            <div className="font-semibold mb-2">Ολοκληρωμένες (Ολοκληρωμένες Μεταφορές)</div>
+            <table className="w-full border text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-2">Α/Α</th>
+                  <th className="border px-2">Παραγωγός</th>
+                  <th className="border px-2">Έργο</th>
+                  <th className="border px-2">Μεταφορέας</th>
+                  <th className="border px-2">Αρ. Οχήματος</th>
+                  <th className="border px-2">Ημ/νία Παραλαβής</th>
+                  <th className="border px-2">Ώρα Παραλαβής</th>
+                  <th className="border px-2">Βάρος (tn)</th>
+                  <th className="border px-2">ΕΚΑ</th>
+                  <th className="border px-2">PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).length === 0 ? (
+                  <tr><td className="border text-center p-2" colSpan={10}>—</td></tr>
+                ) : (
+                  applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).map((t: any, i: number) => {
+                    const prj = A(projects).find((p: any) => p.id === t.projectId);
+                    return (
+                      <tr key={t.id}>
+                        <td className="border text-center">{i + 1}</td>
+                        <td className="border text-center">{t.producer}</td>
+                        <td className="border text-center">{t.project}</td>
+                        <td className="border text-center">{prj?.transporter || '—'}</td>
+                        <td className="border text-center">{t.vehicle || '—'}</td>
+                        <td className="border text-center">{fmt(t.unitDate)}</td>
+                        <td className="border text-center">{t.unitTime || '—'}</td>
+                        <td className="border text-center">{t.weight}</td>
+                        <td className="border text-center">{t.ekaCategory}</td>
+                        <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'slips' && (
+        <div>
+          <UnitTabletApp
+            projects={projects}
+            transports={transports}
+            onReceive={onReceive}
+            onFinalize={onFinalize}
+            lockTab="slips"
+            hideChrome={true}
+          />
+        </div>
+      )}
+
+      {tab === 'products' && (
+        <div className="bg-white border rounded p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold">Προϊόντα</div>
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                className="border p-1 rounded w-48"
+                placeholder="Όνομα προϊόντος"
+                value={newProd.name}
+                onChange={(e:any)=> setNewProd(p => ({ ...p, name: e.target.value }))}
+              />
+              <input
+                className="border p-1 rounded w-28"
+                placeholder="Τιμή (€)"
+                inputMode="decimal"
+                value={newProd.price}
+                onChange={(e:any)=> setNewProd(p => ({ ...p, price: e.target.value }))}
+              />
+              <button
+                className="px-3 py-1.5 rounded bg-green-600 text-white"
+                onClick={() => {
+                  const name = (newProd.name || '').trim();
+                  const priceNum = parseFloat(String(newProd.price).replace(',', '.'));
+                  if (!name) { alert('Συμπλήρωσε όνομα προϊόντος'); return; }
+                  if (!(priceNum >= 0)) { alert('Συμπλήρωσε έγκυρη τιμή'); return; }
+                  setUnitProducts(prev => [{ id: gid(), name, price: priceNum.toFixed(2) }, ...prev]);
+                  setNewProd({ name: '', price: '' });
+                }}
+                title="Πρόσθεσε Προϊόν"
+              >
+                Πρόσθεσε Προϊόν
+              </button>
+            </div>
+          </div>
+          <table className="w-full border text-sm">
             <thead className="bg-gray-100">
               <tr>
                 <th className="border px-2">Α/Α</th>
-                <th className="border px-2">Παραγωγός</th>
-                <th className="border px-2">Έργο</th>
-                <th className="border px-2">Διεύθυνση</th>
-                <th className="border px-2">Ημ/νία Παράδοσης</th>
-                <th className="border px-2">Κατάσταση</th>
+                <th className="border px-2">Όνομα</th>
+                <th className="border px-2">Τιμή (€)</th>
               </tr>
             </thead>
             <tbody>
-              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit).length === 0 ? (
-                <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
+              {unitProducts.length === 0 ? (
+                <tr><td className="border text-center p-2" colSpan={3}>—</td></tr>
               ) : (
-                applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit).map((t: any, i: number) => (
-                  <tr key={t.id} className={t.isNew ? 'bg-yellow-50' : ''}>
+                unitProducts.map((p: any, i: number) => (
+                  <tr key={p.id}>
                     <td className="border text-center">{i + 1}</td>
-                    <td className="border text-center">{t.producer}</td>
-                    <td className="border text-center">{t.project}</td>
-                    <td className="border text-center">{t.address}</td>
-                    <td className="border text-center">{fmt(t.unitDate)}</td>
-                    <td className="border text-center text-blue-700">{t.status || 'Αναμονή υπογραφής'}</td>
+                    <td className="border px-2">{p.name}</td>
+                    <td className="border text-center">{p.price}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
-
-          <div className="font-semibold mb-2">Ολοκληρωμένες</div>
+          {/* Orders table */}
+          <div className="font-semibold mt-6 mb-2">Παραγγελίες</div>
           <table className="w-full border text-sm">
             <thead className="bg-gray-100">
               <tr>
                 <th className="border px-2">Α/Α</th>
-                <th className="border px-2">Παραγωγός</th>
+                <th className="border px-2">Εργολάβος</th>
                 <th className="border px-2">Έργο</th>
-                <th className="border px-2">Μεταφορέας</th>
-                <th className="border px-2">Αρ. Οχήματος</th>
-                <th className="border px-2">Ημ/νία Παραλαβής</th>
-                <th className="border px-2">Ώρα Παραλαβής</th>
-                <th className="border px-2">Βάρος (tn)</th>
-                <th className="border px-2">ΕΚΑ</th>
-                <th className="border px-2">PDF</th>
+                <th className="border px-2">Υπεύθυνος</th>
+                <th className="border px-2">Τηλ.</th>
+                <th className="border px-2">Προϊόν</th>
+                <th className="border px-2">Ποσότητα</th>
+                <th className="border px-2">Ενέργεια</th>
               </tr>
             </thead>
             <tbody>
-              {applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).length === 0 ? (
-                <tr><td className="border text-center p-2" colSpan={10}>—</td></tr>
+              {unitOrders.length === 0 ? (
+                <tr><td className="border text-center p-2" colSpan={8}>—</td></tr>
               ) : (
-                applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).map((t: any, i: number) => {
-                  const prj = A(projects).find((p: any) => p.id === t.projectId);
-                  return (
-                    <tr key={t.id}>
-                      <td className="border text-center">{i + 1}</td>
-                      <td className="border text-center">{t.producer}</td>
-                      <td className="border text-center">{t.project}</td>
-                      <td className="border text-center">{prj?.transporter || '—'}</td>
-                      <td className="border text-center">{t.vehicle || '—'}</td>
-                      <td className="border text-center">{fmt(t.unitDate)}</td>
-                      <td className="border text-center">{t.unitTime || '—'}</td>
-                      <td className="border text-center">{t.weight}</td>
-                      <td className="border text-center">{t.ekaCategory}</td>
-                      <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
-                    </tr>
-                  );
-                })
+                unitOrders.map((o: any, i: number) => (
+                  <tr key={o.id}>
+                    <td className="border text-center">{i + 1}</td>
+                    <td className="border px-2">{o.producer || o.ergolavos || '-'}</td>
+                    <td className="border px-2">{o.project || '-'}</td>
+                    <td className="border px-2">{o.managerName || '-'}</td>
+                    <td className="border text-center">{o.managerPhone || '-'}</td>
+                    <td className="border px-2">{o.product || '-'}</td>
+                    <td className="border text-center">{o.quantity ? String(o.quantity) : '-'}</td>
+                    <td className="border text-center">
+                      {o.status ? (
+                        <span className={o.status === 'Αποδοχή' ? 'text-green-700' : 'text-red-700'}>{o.status}</span>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2">
+                          <button className="px-2 py-1 rounded bg-green-600 text-white" onClick={() => acceptOrder(o.id)}>Αποδοχή</button>
+                          <button className="px-2 py-1 rounded bg-red-600 text-white" onClick={() => rejectOrder(o.id)}>Απόρριψη</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -2252,236 +2736,331 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
         const active = all.filter((t: any) => !t.receivedByUnit);
         const awaiting = all.filter((t: any) => t.deliveredToUnit && !t.receivedByUnit);
         const open = all.filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
-
-        const todayStr = today();
-        const todayExpected = active.filter((t: any) => t.date === todayStr);
-
         const now = new Date();
+        const ymd = (d: Date) => d.toISOString().slice(0,10);
+        const todayStr = ymd(now);
+        const todayExpected = active.filter((t: any) => t.date === todayStr);
+        // week bounds
         const dow = (now.getDay() + 6) % 7; // 0=Mon
         const monday = new Date(now); monday.setDate(now.getDate() - dow);
         const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-        const ymd = (d: Date) => d.toISOString().slice(0,10);
         const weekStart = ymd(monday);
         const weekEnd = ymd(sunday);
         const weekExpected = active.filter((t: any) => (t.date >= weekStart && t.date <= weekEnd));
-
-        const month = now.getMonth();
-        const year = now.getFullYear();
-        const mStart = new Date(year, month, 1);
-        const mEnd = new Date(year, month + 1, 0);
+        // month
+        const month = now.getMonth(); const year = now.getFullYear();
+        const mStart = new Date(year, month, 1); const mEnd = new Date(year, month + 1, 0);
         const mStartStr = ymd(mStart), mEndStr = ymd(mEnd);
-
         const deliveredThisMonth = all.filter((t: any) => t.receivedByUnit && t.unitDate && t.unitDate >= mStartStr && t.unitDate <= mEndStr);
         const loadsMonth = deliveredThisMonth.length;
         const tonsMonth = deliveredThisMonth.reduce((s: number, t: any) => s + (parseFloat(String(t.weight||0))||0), 0);
-
-        const pastDays = 30;
-        const pStart = new Date(now); pStart.setDate(now.getDate() - (pastDays - 1));
+        // rolling 30d
+        const pastDays = 30; const pStart = new Date(now); pStart.setDate(now.getDate() - (pastDays - 1));
         const pStartStr = ymd(pStart), todayISO = ymd(now);
         const delivered30 = all.filter((t: any) => t.receivedByUnit && t.unitDate && t.unitDate >= pStartStr && t.unitDate <= todayISO);
-        const mapByDay: Record<string,{loads:number;tons:number}> = {};
-        delivered30.forEach((t: any) => {
-          const d = t.unitDate; if (!mapByDay[d]) mapByDay[d] = { loads: 0, tons: 0 };
-          mapByDay[d].loads += 1; mapByDay[d].tons += (parseFloat(String(t.weight||0))||0);
-        });
-        const daysCount = Math.max(1, Object.keys(mapByDay).length || pastDays);
         const avgDailyLoads = delivered30.length / pastDays;
         const avgDailyTons = (delivered30.reduce((s: number, t: any) => s + (parseFloat(String(t.weight||0))||0), 0)) / pastDays;
-
         const remainingDaysInMonth = Math.max(0, (mEnd.getDate() - now.getDate()));
         const forecastMonthTons = avgDailyTons * remainingDaysInMonth;
 
-        // Breakdowns by EKA
-        const activeByEka: Record<string, { loads: number; estTons: number }> = {};
-        active.forEach((t: any) => {
-          const code = t.ekaCategory || 'Άγνωστο';
-          if (!activeByEka[code]) activeByEka[code] = { loads: 0, estTons: 0 };
-          activeByEka[code].loads += 1;
-          activeByEka[code].estTons += TON_PER_LOAD;
-        });
-
-        const yStart = `${year}-01-01`;
-        const yEnd = `${year}-12-31`;
-        const agreeByEka: Record<string, { loads: number; estTons: number }> = {};
-        A(projects).filter((p: any) => (p.start <= yEnd && p.end >= yStart)).forEach((p: any) => {
-          (p.wasteLines || []).forEach((wl: any) => {
-            const code = wl.code || 'Άγνωστο';
-            const q = parseFloat(wl.quantity || '0') || 0;
-            if (!agreeByEka[code]) agreeByEka[code] = { loads: 0, estTons: 0 };
-            agreeByEka[code].loads += q;
-            agreeByEka[code].estTons += q * TON_PER_LOAD;
-          });
-        });
-
-        const doneByEka: Record<string, { loads: number; tons: number }> = {};
-        all.filter((t: any) => t.receivedByUnit && t.unitDate && t.unitDate >= yStart && t.unitDate <= yEnd).forEach((t: any) => {
-          const code = t.ekaCategory || 'Άγνωστο';
-          if (!doneByEka[code]) doneByEka[code] = { loads: 0, tons: 0 };
-          doneByEka[code].loads += 1;
-          doneByEka[code].tons += parseFloat(String(t.weight || 0)) || 0;
-        });
-
-        // Top producers/projects (expected this week)
-        const weekByProducer: Record<string, number> = {};
-        weekExpected.forEach((t: any) => { weekByProducer[t.producer] = (weekByProducer[t.producer]||0) + 1; });
-        const weekByProject: Record<string, number> = {};
-        weekExpected.forEach((t: any) => { weekByProject[t.project] = (weekByProject[t.project]||0) + 1; });
-
-        const sortEntries = (obj: any) => Object.entries(obj).sort((a: any, b: any) => (b[1].loads - a[1].loads));
-        const sortNum = (obj: any) => Object.entries(obj).sort((a: any, b: any) => (b[1] - a[1]));
-
+        // helpers
         const StatCard = ({ label, value, sub }: any) => (
           <div className="bg-white border rounded p-4 shadow-sm">
             <div className="text-xs text-gray-500">{label}</div>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-2xl font-bold">{typeof value === 'function' ? value() : value}</div>
             {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
           </div>
         );
 
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="Ενεργές Μεταφορές" value={active.length} />
-              <StatCard label="Αναμονή υπογραφής" value={awaiting.length} />
-              <StatCard label="Αναμενόμενα σήμερα" value={`${todayExpected.length} φορτ.`} sub={`${(todayExpected.length * TON_PER_LOAD).toFixed(1)} tn`} />
-              <StatCard label="Αναμενόμενα εβδομάδας" value={`${weekExpected.length} φορτ.`} sub={`${(weekExpected.length * TON_PER_LOAD).toFixed(1)} tn`} />
-              <StatCard label="Παραλαβές μήνα" value={`${loadsMonth} φορτ.`} sub={`${tonsMonth.toFixed(1)} tn`} />
-              <StatCard label="Μέση/ημέρα (30ημ)" value={`${avgDailyLoads.toFixed(2)} φορτ.`} sub={`${avgDailyTons.toFixed(2)} tn`} />
-              <StatCard label="Πρόβλεψη υπολ. μήνα" value={`${forecastMonthTons.toFixed(1)} tn`} sub={`υπόθεση ${TON_PER_LOAD} tn/φορτίο`} />
-              <StatCard label="Ανοιχτές για προγραμματισμό" value={open.length} sub="χωρίς παράδοση" />
+            <TabBar
+              tabs={[
+                { key: 'overview', label: 'Επισκόπηση' },
+                { key: 'projects', label: 'Έργα' },
+                { key: 'deliveries', label: 'Παραδόσεις' },
+                { key: 'forecast', label: 'Προβλέψεις' },
+                { key: 'finance', label: 'Οικονομικά' },
+                { key: 'alerts', label: 'Ειδοποιήσεις & Εισηγήσεις' },
+              ]}
+              active={statsTab}
+              onChange={(k: string) => setStatsTab((k as any) || 'overview')}
+            />
+
+            <div className="inline-flex bg-gray-100 p-1 rounded-full">
+              {statsTab === 'overview' && (
+                <>
+                  <button onClick={() => setStatsSub('kpis')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'kpis' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Βασικοί Δείκτες</button>
+                  <button onClick={() => setStatsSub('trends')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'trends' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Τάσεις</button>
+                </>
+              )}
+              {statsTab === 'projects' && (
+                <>
+                  <button onClick={() => setStatsSub('progress')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'progress' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Πρόοδος έργων</button>
+                  <button onClick={() => setStatsSub('by-contractor')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'by-contractor' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Ανά εργολάβο</button>
+                </>
+              )}
+              {statsTab === 'deliveries' && (
+                <>
+                  <button onClick={() => setStatsSub('today-week')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'today-week' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Σήμερα / Εβδομάδα</button>
+                  <button onClick={() => setStatsSub('history')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'history' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Ιστορικό</button>
+                </>
+              )}
+              {statsTab === 'forecast' && (
+                <>
+                  <button onClick={() => setStatsSub('next-weeks')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'next-weeks' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Επόμενες εβδομάδες</button>
+                  <button onClick={() => setStatsSub('deviations')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'deviations' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Αποκλίσεις</button>
+                </>
+              )}
+              {statsTab === 'finance' && (
+                <>
+                  <button onClick={() => setStatsSub('by-project')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'by-project' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Ανά έργο</button>
+                  <button onClick={() => setStatsSub('summary')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'summary' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Συνολικά</button>
+                </>
+              )}
+              {statsTab === 'alerts' && (
+                <>
+                  <button onClick={() => setStatsSub('notifications')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'notifications' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Ειδοποιήσεις</button>
+                  <button onClick={() => setStatsSub('insights')} className={`px-3 py-1.5 rounded-full text-sm ${statsSub === 'insights' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Προτάσεις</button>
+                </>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div>
-                <div className="font-semibold mb-2">Αναμενόμενες Παραλαβές (Ενεργές) ανά ΕΚΑ</div>
+            {statsTab === 'overview' && statsSub === 'kpis' && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <StatCard label="Συνολικές ποσότητες (tn)" value={all.filter((t:any)=>t.receivedByUnit).reduce((s:number,t:any)=> s + (parseFloat(String(t.weight||0))||0), 0).toFixed(1)} />
+                <StatCard label="Ενεργά έργα" value={A(projects).filter((p:any)=> (p.end||'') >= todayStr).length} />
+                <StatCard label="% Ολοκλήρωσης" value={() => {
+                  const expected = A(projects).reduce((s:number,p:any)=> s + (A(p.wasteLines).reduce((ss:number,wl:any)=> ss + ((parseFloat(wl.quantity||'0')||0)*TON_PER_LOAD),0)), 0);
+                  const actual = all.filter((t:any)=> t.receivedByUnit).reduce((s:number,t:any)=> s + (parseFloat(String(t.weight||0))||0),0);
+                  return expected>0 ? `${Math.min(100,(actual/expected)*100).toFixed(0)}%` : '—';
+                }} />
+                <StatCard label="Καθυστερήσεις" value={awaiting.length} />
+                <StatCard label="Πληρότητα" value="—" sub="—" />
+                <StatCard label="Έσοδα" value="—" />
+              </div>
+            )}
+
+            {statsTab === 'overview' && statsSub === 'trends' && (
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600">Πραγματικές ποσότητες ανά μήνα (τρέχον έτος)</div>
+                {(() => {
+                  const months = Array.from({length:12}, (_,i)=> i);
+                  const monthName = (i:number)=> new Date(year, i, 1).toLocaleString('el-GR',{month:'short'});
+                  const actual: number[] = months.map((m)=> A(all).filter((t:any)=> t.receivedByUnit && t.unitDate && (new Date(t.unitDate).getMonth()===m) && (new Date(t.unitDate).getFullYear()===year)).reduce((s:number,t:any)=> s + (parseFloat(String(t.weight||0))||0),0));
+                  const maxVal = Math.max(1, ...actual);
+                  return (
+                    <div className="grid grid-cols-1 gap-1">
+                      {months.map((m)=> (
+                        <div key={m} className="flex items-center gap-2">
+                          <div className="w-16 text-xs text-gray-600">{monthName(m)}</div>
+                          <div className="flex-1 h-3 bg-gray-100 rounded">
+                            <div className="h-3 bg-blue-600 rounded" style={{ width: `${(actual[m]/maxVal)*100}%` }} />
+                          </div>
+                          <div className="w-16 text-right text-xs">{actual[m].toFixed(1)} tn</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {statsTab === 'projects' && statsSub === 'progress' && (
+              <div className="overflow-auto">
                 <table className="w-full border text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border px-2 text-left">Κωδ. ΕΚΑ</th>
-                      <th className="border px-2 text-right">Φορτία</th>
-                      <th className="border px-2 text-right">Εκτιμ. Τόνοι</th>
+                      <th className="border px-2">Έργο</th>
+                      <th className="border px-2">Παραγωγός</th>
+                      <th className="border px-2">% Ολοκλήρωσης</th>
+                      <th className="border px-2">Καθυστερήσεις</th>
+                      <th className="border px-2">Πρόβλεψη</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.keys(activeByEka).length === 0 ? (
-                      <tr><td className="border text-center p-2" colSpan={3}>—</td></tr>
+                    {A(projects).length === 0 ? (
+                      <tr><td className="border text-center p-2" colSpan={5}>—</td></tr>
                     ) : (
-                      sortEntries(activeByEka).map(([code, v]: any) => (
-                        <tr key={code}>
-                          <td className="border px-2">{code}</td>
-                          <td className="border px-2 text-right">{v.loads}</td>
-                          <td className="border px-2 text-right">{v.estTons.toFixed(1)}</td>
-                        </tr>
-                      ))
+                      A(projects).map((p:any)=>{
+                        const expected = A(p.wasteLines).reduce((s:number,wl:any)=> s + ((parseFloat(wl.quantity||'0')||0)*TON_PER_LOAD),0);
+                        const actual = A(transports).filter((t:any)=> t.projectId === p.id && t.receivedByUnit).reduce((s:number,t:any)=> s + (parseFloat(String(t.weight||0))||0),0);
+                        const pct = expected>0 ? Math.min(100,(actual/expected)*100) : 0;
+                        const delays = A(transports).filter((t:any)=> t.projectId===p.id && t.deliveredToUnit && !t.receivedByUnit).length;
+                        return (
+                          <tr key={p.id}>
+                            <td className="border px-2">{p.projectName}</td>
+                            <td className="border px-2">{p.producer}</td>
+                            <td className="border px-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 bg-gray-100 h-2 rounded"><div className="bg-green-600 h-2 rounded" style={{ width: `${pct}%` }} /></div>
+                                <div className="text-xs">{expected>0 ? `${pct.toFixed(0)}%` : '—'}</div>
+                              </div>
+                            </td>
+                            <td className="border text-center">{delays}</td>
+                            <td className="border text-center">—</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
+            )}
 
-              <div>
-                <div className="font-semibold mb-2">Συμφωνίες Έτους ανά ΕΚΑ</div>
-                <div className="text-xs text-gray-500 mb-1">{year}</div>
+            {statsTab === 'projects' && statsSub === 'by-contractor' && (
+              <div className="overflow-auto">
                 <table className="w-full border text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border px-2 text-left">Κωδ. ΕΚΑ</th>
-                      <th className="border px-2 text-right">Φορτία</th>
-                      <th className="border px-2 text-right">Εκτιμ. Τόνοι</th>
+                      <th className="border px-2">Εργολάβος</th>
+                      <th className="border px-2">Ποσότητες (tn)</th>
+                      <th className="border px-2">Συνέπεια</th>
+                      <th className="border px-2">Καθυστερήσεις</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.keys(agreeByEka).length === 0 ? (
-                      <tr><td className="border text-center p-2" colSpan={3}>—</td></tr>
-                    ) : (
-                      sortEntries(agreeByEka).map(([code, v]: any) => (
-                        <tr key={code}>
-                          <td className="border px-2">{code}</td>
-                          <td className="border px-2 text-right">{v.loads}</td>
-                          <td className="border px-2 text-right">{v.estTons.toFixed(1)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div>
-                <div className="font-semibold mb-2">Παραδοθέντα (Έτος) ανά ΕΚΑ</div>
-                <div className="text-xs text-gray-500 mb-1">{year}</div>
-                <table className="w-full border text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="border px-2 text-left">Κωδ. ΕΚΑ</th>
-                      <th className="border px-2 text-right">Φορτία</th>
-                      <th className="border px-2 text-right">Τόνοι</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(doneByEka).length === 0 ? (
-                      <tr><td className="border text-center p-2" colSpan={3}>—</td></tr>
-                    ) : (
-                      sortEntries(doneByEka).map(([code, v]: any) => (
-                        <tr key={code}>
-                          <td className="border px-2">{code}</td>
-                          <td className="border px-2 text-right">{v.loads}</td>
-                          <td className="border px-2 text-right">{v.tons.toFixed(1)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <div className="font-semibold mb-2">Top Παραγωγοί (Αυτή την εβδομάδα)</div>
-                <table className="w-full border text-sm">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="border px-2 text-left">Παραγωγός</th>
-                      <th className="border px-2 text-right">Αναμενόμενα Φορτία</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(weekByProducer).length === 0 ? (
-                      <tr><td className="border text-center p-2" colSpan={2}>—</td></tr>
-                    ) : (
-                      sortNum(weekByProducer).slice(0,5).map(([name, n]: any) => (
+                    {(() => {
+                      const map: Record<string,{tons:number, delays:number}> = {};
+                      A(projects).forEach((p:any)=>{
+                        const tr = p.transporter || '-';
+                        if (!map[tr]) map[tr] = { tons: 0, delays: 0 };
+                        const tons = A(transports).filter((t:any)=> t.projectId===p.id && t.receivedByUnit).reduce((s:number,t:any)=> s + (parseFloat(String(t.weight||0))||0),0);
+                        const delays = A(transports).filter((t:any)=> t.projectId===p.id && t.deliveredToUnit && !t.receivedByUnit).length;
+                        map[tr].tons += tons; map[tr].delays += delays;
+                      });
+                      const rows = Object.entries(map);
+                      if (rows.length === 0) return (<tr><td className="border text-center p-2" colSpan={4}>—</td></tr>);
+                      return rows.map(([name,vals]) => (
                         <tr key={name}>
                           <td className="border px-2">{name}</td>
-                          <td className="border px-2 text-right">{n}</td>
+                          <td className="border px-2 text-right">{vals.tons.toFixed(1)}</td>
+                          <td className="border px-2 text-center">—</td>
+                          <td className="border px-2 text-center">{vals.delays}</td>
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
+            )}
 
-              <div>
-                <div className="font-semibold mb-2">Top Έργα (Αυτή την εβδομάδα)</div>
+            {statsTab === 'deliveries' && statsSub === 'today-week' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="font-semibold mb-2">Σήμερα</div>
+                  <ul className="text-sm space-y-1">
+                    {todayExpected.length === 0 ? (<li className="text-gray-500">—</li>) : todayExpected.map((t:any)=> (
+                      <li key={t.id} className="flex justify-between bg-white border rounded px-2 py-1"><span>{t.producer} — {t.project}</span><span className="text-gray-500">{t.vehicle||'—'}</span></li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="font-semibold mb-2">Εβδομάδα</div>
+                  <ul className="text-sm space-y-1">
+                    {weekExpected.length === 0 ? (<li className="text-gray-500">—</li>) : weekExpected.map((t:any)=> (
+                      <li key={t.id} className="flex justify-between bg-white border rounded px-2 py-1"><span>{t.producer} — {t.project}</span><span className="text-gray-500">{t.date || '—'}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {statsTab === 'deliveries' && statsSub === 'history' && (
+              <div className="overflow-auto">
                 <table className="w-full border text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border px-2 text-left">Έργο</th>
-                      <th className="border px-2 text-right">Αναμενόμενα Φορτία</th>
+                      <th className="border px-2">Ημ/νία</th>
+                      <th className="border px-2">Παραγωγός</th>
+                      <th className="border px-2">Έργο</th>
+                      <th className="border px-2">ΕΚΑ</th>
+                      <th className="border px-2">Βάρος (tn)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.keys(weekByProject).length === 0 ? (
-                      <tr><td className="border text-center p-2" colSpan={2}>—</td></tr>
-                    ) : (
-                      sortNum(weekByProject).slice(0,5).map(([name, n]: any) => (
-                        <tr key={name}>
-                          <td className="border px-2">{name}</td>
-                          <td className="border px-2 text-right">{n}</td>
-                        </tr>
-                      ))
+                    {A(all).filter((t:any)=> t.receivedByUnit).slice(0,100).map((t:any)=> (
+                      <tr key={t.id}>
+                        <td className="border px-2">{fmt(t.unitDate)}</td>
+                        <td className="border px-2">{t.producer}</td>
+                        <td className="border px-2">{t.project}</td>
+                        <td className="border px-2">{t.ekaCategory}</td>
+                        <td className="border px-2 text-right">{t.weight}</td>
+                      </tr>
+                    ))}
+                    {A(all).filter((t:any)=> t.receivedByUnit).length === 0 && (
+                      <tr><td className="border text-center p-2" colSpan={5}>—</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
-            </div>
+            )}
+
+            {statsTab === 'forecast' && statsSub === 'next-weeks' && (
+              <div className="space-y-2 text-sm">
+                <div className="text-gray-600">Αναμενόμενες ποσότητες (εκτίμηση tn με {TON_PER_LOAD} tn/φορτίο)</div>
+                {(() => {
+                  const twoWeeks: Record<string, number> = {};
+                  const todayDate = new Date();
+                  for (let i=0;i<14;i++) { const d = new Date(todayDate); d.setDate(d.getDate()+i); const k = ymd(d); twoWeeks[k]=0; }
+                  A(open).forEach((t:any)=>{ if (twoWeeks[t.date]) twoWeeks[t.date] += 1; });
+                  const entries = Object.entries(twoWeeks);
+                  const maxL = Math.max(1, ...entries.map(([,c])=> c));
+                  return (
+                    <div className="space-y-1">
+                      {entries.map(([d,c])=> (
+                        <div key={d} className="flex items-center gap-2">
+                          <div className="w-24 text-xs text-gray-600">{fmt(d)}</div>
+                          <div className="flex-1 h-2 bg-gray-100 rounded"><div className="h-2 bg-indigo-600 rounded" style={{ width: `${(c/maxL)*100}%` }} /></div>
+                          <div className="w-24 text-right text-xs">{(c*TON_PER_LOAD).toFixed(1)} tn</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {statsTab === 'forecast' && statsSub === 'deviations' && (
+              <div className="space-y-2 text-sm">
+                <div className="text-gray-600">Αποκλίσεις προβλέψεων vs πραγματικών (τρέχων μήνας)</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <StatCard label="Πραγματικά (tn)" value={tonsMonth.toFixed(1)} />
+                  <StatCard label="Πρόβλεψη υπολοίπου (tn)" value={forecastMonthTons.toFixed(1)} />
+                  <StatCard label="Σύνολο εκτίμησης (tn)" value={(tonsMonth+forecastMonthTons).toFixed(1)} />
+                  <StatCard label="Διαφορά" value={(0).toFixed(1)} />
+                </div>
+              </div>
+            )}
+
+            {statsTab === 'finance' && statsSub === 'by-project' && (
+              <div className="text-sm text-gray-600">Οικονομικά ανά έργο — Προς υλοποίηση</div>
+            )}
+            {statsTab === 'finance' && statsSub === 'summary' && (
+              <div className="text-sm text-gray-600">Συνολικά έσοδα/έξοδα ανά μήνα — Προς υλοποίηση</div>
+            )}
+
+            {statsTab === 'alerts' && statsSub === 'notifications' && (
+              <div className="space-y-2">
+                {A(notifications).filter((n:any)=> n.target?.page==='unit').length === 0 ? (
+                  <div className="text-sm text-gray-500">Καμία ειδοποίηση</div>
+                ) : (
+                  A(notifications).filter((n:any)=> n.target?.page==='unit').map((n:any)=> (
+                    <div key={n.id} className={`p-2 text-sm rounded ${n.read ? 'bg-gray-50' : 'bg-blue-50'}`}>{n.title || 'Ειδοποίηση'}</div>
+                  ))
+                )}
+              </div>
+            )}
+            {statsTab === 'alerts' && statsSub === 'insights' && (
+              <div className="space-y-2 text-sm">
+                <div className="font-semibold">Προτάσεις</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {awaiting.length > 5 && (<li>Υψηλές εκκρεμότητες υπογραφών ({awaiting.length}). Εξετάστε επιτάχυνση διαδικασιών υπογραφής.</li>)}
+                  {open.length > 10 && (<li>Πολλές ανοιχτές μεταφορές ({open.length}). Προτείνεται αύξηση δρομολογίων.</li>)}
+                  {(awaiting.length <= 5 && open.length <= 10) && (<li>Δεν εντοπίστηκαν σημαντικές αποκλίσεις.</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -2541,12 +3120,24 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                   </label>
                 </div>
 
+                <div className="font-semibold">Στοιχεία χρέωσης</div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <label className="col-span-2">Χρεώστης
+                    <select className="border p-1 w-full" value={weighData.debtor || ''} onChange={(e: any) => setWeighData({ ...weighData, debtor: e.target.value })}>
+                      <option value="">— Επιλογή —</option>
+                      {DEBTOR_OPTIONS.map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                    </select>
+                  </label>
+                </div>
+
                 {/* No signature at Unit step: after ολοκλήρωση ζύγισης, ο οδηγός θα κληθεί να υπογράψει στο mobile */}
               </div>
             );
           })()}
         </Modal>
       )}
+
+      
 
       {exportOpen && (
         <Modal title="Ετήσια Έκθεση" onClose={() => setExportOpen(false)} onSubmit={() => {
@@ -2568,7 +3159,7 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
 };
 
 /******** mobile ********/
-function EcoMobileFrame({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, onRejectRequest, addNotif, onFinalizeDelivery, onUpdateTransport }: any) {
+function EcoMobileFrame({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, onRejectRequest, addNotif, onFinalizeDelivery, onUpdateTransport, onClearTransNew, onClearProjectsNew }: any) {
   return (
     <div className="flex justify-center items-center min-h-[700px] bg-gray-200 rounded-lg">
       <div className="relative bg-black p-4 rounded-[3rem] w-[380px] h-[780px] shadow-2xl border-[8px] border-gray-900">
@@ -2605,17 +3196,39 @@ function UnitTabletFrame({ projects, transports, onReceive, onFinalize, onAddTra
   );
 }
 
-function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTransport, addNotif }: any) {
+function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTransport, addNotif, lockTab, hideChrome, onNavigateUnit }: any) {
   const [filter, setFilter] = useState<any>({ producer: '', project: '', from: '', to: '' });
   const [weighOpen, setWeighOpen] = useState(false);
-  const [weighData, setWeighData] = useState<any>({ id: '', weight: '', eka: (EKA[0] && EKA[0].code) || '' });
-  const [tab, setTab] = useState<'weigh' | 'awaiting' | 'completed' | 'slips'>('weigh');
+  const [weighData, setWeighData] = useState<any>({ id: '', weight: '', eka: (EKA[0] && EKA[0].code) || '', debtor: '' });
+  const [tab, setTab] = useState<'weigh' | 'awaiting' | 'completed' | 'slips'>(lockTab || 'weigh');
   const [unitSignModal, setUnitSignModal] = useState<any>({ open: false, id: null, signature: '' });
+  const DEBTOR_OPTIONS = ['Εργολάβος Α','Εργολάβος Β','Εργολάβος Γ','Εταιρεία Skip 1','Εταιρεία Skip 2','Εταιρεία Skip 3'];
 
   // Local slips store for independent weighing (not linked to transports)
   const [slips, setSlips] = useState<any[]>([]);
-  const [slipsFilter, setSlipsFilter] = useState<any>({ producer: '', project: '', transporter: '', vehicle: '', from: '', to: '' });
+  const [slipsFilter, setSlipsFilter] = useState<any>({ producer: '', project: '', debtor: '', transporter: '', vehicle: '', from: '', to: '' });
   const [completedFilter, setCompletedFilter] = useState<any>({ producer: '', project: '', transporter: '', vehicle: '', from: '', to: '' });
+  // Offline (local) Producers & Projects for Unit web/tablet receive form
+  const [offlineProducers, setOfflineProducers] = useState<string[]>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_offline_producers'); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
+  });
+  const [offlineProjects, setOfflineProjects] = useState<Record<string, string[]>>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_offline_projects'); const obj = raw ? JSON.parse(raw) : {}; return obj && typeof obj === 'object' ? obj : {}; } catch { return {}; }
+  });
+  const [offlineTransporters, setOfflineTransporters] = useState<string[]>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_offline_transporters'); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
+  });
+  const [offlineTransPlates, setOfflineTransPlates] = useState<Record<string, string[]>>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_offline_transporter_plates'); const obj = raw ? JSON.parse(raw) : {}; return obj && typeof obj === 'object' ? obj : {}; } catch { return {}; }
+  });
+  const [offlineDebtors, setOfflineDebtors] = useState<string[]>(() => {
+    try { const raw = localStorage.getItem('iwm_unit_offline_debtors'); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; } catch { return []; }
+  });
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_offline_producers', JSON.stringify(offlineProducers)); } catch {} }, [offlineProducers]);
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_offline_projects', JSON.stringify(offlineProjects)); } catch {} }, [offlineProjects]);
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_offline_transporters', JSON.stringify(offlineTransporters)); } catch {} }, [offlineTransporters]);
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_offline_transporter_plates', JSON.stringify(offlineTransPlates)); } catch {} }, [offlineTransPlates]);
+  React.useEffect(() => { try { localStorage.setItem('iwm_unit_offline_debtors', JSON.stringify(offlineDebtors)); } catch {} }, [offlineDebtors]);
   // persist slips locally so they remain after refresh
   React.useEffect(() => {
     try {
@@ -2630,54 +3243,53 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
   React.useEffect(() => {
     try { localStorage.setItem('iwm_tablet_slips', JSON.stringify(slips)); } catch {}
   }, [slips]);
-  const [wSubTab, setWSubTab] = useState<'open' | 'receive'>('open');
+  const [wSubTab, setWSubTab] = useState<'open' | 'receive'>('receive');
+  // Unknown project registration flow (UI-only, no persistence yet)
+  const [projReg, setProjReg] = useState<any>({ open: false, step: 'ask', project: '', producer: '', andPrint: false });
   // weigh form: manual project name, producer text, transporter from list, vehicle from per-transporter list
-  const transporterList = ['Euroskip', 'Skip Hire', 'TransCo', 'GreenMove', 'WastePro', 'FastHaul'];
+  const transporterList = ['Euroskip', 'Skip Hire'];
   const transporterPlates: Record<string, string[]> = {
-    Euroskip: ['ΚΥΧ1234', 'ΚΥΧ5678', 'ΚΥΧ9999'],
-    'Skip Hire': ['ΑΑΖ5678', 'ΑΑΖ1122'],
-    TransCo: ['TRN-1001', 'TRN-2002'],
-    GreenMove: ['GRN-1234', 'GRN-5678'],
-    WastePro: ['WPR-1111', 'WPR-2222'],
-    FastHaul: ['FHL-5555', 'FHL-6666'],
+    Euroskip: ['ΚΥΧ123', 'ΚΥΧ567', 'ΚΥΧ999'],
+    'Skip Hire': ['ΑΑΖ567', 'ΑΑΖ112'],
   };
-  const [wForm, setWForm] = useState<any>({ project: '', producer: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '' });
-  const [lastOpenWarn, setLastOpenWarn] = useState<string>('');
+  const [wForm, setWForm] = useState<any>({ project: '', producer: '', debtor: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '' });
+  const [trDropOpen, setTrDropOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminForm, setAdminForm] = useState<any>({ transporter: '', plate: '', plateTransporter: '', producer: '', projectProducer: '', project: '', debtor: '' });
   const randomWeigh = () => {
     const rnd = (Math.random() * (12 - 5) + 5);
     setWForm((f: any) => ({ ...f, weight: rnd.toFixed(2) }));
   };
-  // Warn if selected transporter + plate matches an open transport
-  React.useEffect(() => {
-    const tr = (wForm.transporter || '').trim();
-    const pl = (wForm.plate || '').trim();
-    if (!tr || !pl) { if (lastOpenWarn) setLastOpenWarn(''); return; }
-    const open = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
-    const matches = open.filter((t: any) => {
-      const prj = A(projects).find((p: any) => p.id === t.projectId);
-      const tTrans = t.transporter || prj?.transporter || '';
-      const tVeh = t.vehicle || '';
-      return tTrans === tr && tVeh === pl;
-    });
-    if (matches.length > 0) {
-      const listing = matches.map((m: any) => `• ${m.producer || '-'} — ${m.project || '-'}`).join('\n');
-      const msg = `Υπάρχει ανοιχτή μεταφορά για αυτόν τον Μεταφορέα/Αρ. Οχήματος:\n${listing}\n\nΕπιβεβαίωσε ότι πρόκειται για διαφορετικό φορτίο.`;
-      if (msg !== lastOpenWarn) {
-        alert(msg);
-        setLastOpenWarn(msg);
-      }
-    } else if (lastOpenWarn) {
-      setLastOpenWarn('');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wForm.transporter, wForm.plate, transports]);
-  const submitWeighSlip = (andPrint = false) => {
+  // Removed warning when selecting plate/transporter to allow manual receive without prompts
+  const continueWeighSlip = (andPrint = false) => {
     const plate = (wForm.plate || '').trim();
     if (!wForm.project) return alert('Συμπλήρωσε Έργο');
     if (!plate) return alert('Συμπλήρωσε Αρ. Οχήματος');
     if (!wForm.eka) return alert('Επίλεξε κατηγορία ΕΚΑ');
     const w = parseFloat(String(wForm.weight || '0')) || 0;
     if (w <= 0) return alert('Άκυρο βάρος');
+    // Try to find a matching open transfer from the Automatic list
+    const openTransfers = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
+    const tr = (wForm.transporter || '').trim();
+    const pl = (wForm.plate || '').trim();
+    let matchId: string | null = null;
+    if (tr && pl) {
+      const byTP = openTransfers.find((t: any) => {
+        const prj = A(projects).find((p: any) => p.id === t.projectId);
+        const tTrans = t.transporter || prj?.transporter || '';
+        const tVeh = t.vehicle || '';
+        return tTrans === tr && tVeh === pl;
+      });
+      if (byTP) matchId = byTP.id;
+    }
+    if (!matchId && wForm.producer && wForm.project) {
+      const byPP = openTransfers.find((t: any) => {
+        const prj = A(projects).find((p: any) => p.id === t.projectId);
+        const tProj = t.project || prj?.projectName || '';
+        return t.producer === wForm.producer && tProj === wForm.project;
+      });
+      if (byPP) matchId = byPP.id;
+    }
     const now = new Date();
     const ymd = now.toISOString().slice(0,10);
     const tm = now.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -2689,6 +3301,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
       project: (wForm.project || '-'),
       projectId: undefined,
       unit: '-',
+      debtor: (wForm.debtor || '-'),
       transporter: (wForm.transporter || '-'),
       vehicle: plate,
       ekaCategory: wForm.eka,
@@ -2724,12 +3337,39 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
       try { addNotif && addNotif('Παράδοση στη μονάδα', `${row.producer} / ${row.project} — Παραλαβή (εκτός IWM)`, { page: 'transporter', tab: 'transfers' }); } catch {}
     }
     if (andPrint) try { pdfSlip(row); } catch {}
-    // switch to slips tab and reset form
-    setTab('slips' as any);
-    setWForm({ project: '', producer: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '' });
+    // If matched an existing open transfer, update it and redirect to Automatic tab
+    if (matchId) {
+      try { onReceive && onReceive(matchId, w, wForm.eka); } catch {}
+      if (onNavigateUnit) {
+        try { onNavigateUnit('transfers', 'awaiting'); } catch {}
+      } else {
+        setTab('weigh' as any);
+        setWSubTab('open');
+      }
+    } else {
+      // otherwise, go to slips as before
+      setTab('slips' as any);
+    }
+  setWForm({ project: '', producer: '', debtor: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '' });
   };
 
-  const openWeigh = (t: any) => { const rnd = (Math.random() * (12 - 5) + 5); setWeighData({ id: t.id, weight: rnd.toFixed(2), eka: (EKA[0] && EKA[0].code) || '' }); setWeighOpen(true); };
+  const submitWeighSlip = (andPrint = false) => {
+    const plate = (wForm.plate || '').trim();
+    if (!wForm.project) return alert('Συμπλήρωσε Έργο');
+    if (!plate) return alert('Συμπλήρωσε Αρ. Οχήματος');
+    if (!wForm.eka) return alert('Επίλεξε κατηγορία ΕΚΑ');
+    // If project is not known (platform/offline), show central popup flow
+    const platformAll = new Set(A(projects).map((p:any)=> p.projectName).filter(Boolean));
+    const offlineAll = new Set(Object.values(offlineProjects || {}).flat());
+    const isKnown = platformAll.has(wForm.project) || offlineAll.has(wForm.project);
+    if (!isKnown) {
+      setProjReg({ open: true, step: 'ask', project: wForm.project, producer: (wForm.producer||''), andPrint });
+      return;
+    }
+    continueWeighSlip(andPrint);
+  };
+
+  const openWeigh = (t: any) => { const rnd = (Math.random() * (12 - 5) + 5); setWeighData({ id: t.id, weight: rnd.toFixed(2), eka: (EKA[0] && EKA[0].code) || '', debtor: '' }); setWeighOpen(true); };
   const submitWeigh = () => {
     if (!weighData.id) return;
     // call parent receive handler
@@ -2748,6 +3388,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
       project: t?.project || '-',
       projectId: t?.projectId,
       unit: t?.unit || '-',
+      debtor: (weighData.debtor || '-'),
       transporter: t?.transporter || prj?.transporter || '-',
       vehicle: t?.vehicle || '-',
       ekaCategory: weighData.eka,
@@ -2759,11 +3400,13 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 py-3 border-b bg-white sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <div className="font-semibold">Μονάδα — Tablet</div>
+      {!hideChrome && (
+        <div className="px-4 py-3 border-b bg-white sticky top-0 z-10">
+          <div className="flex items-center justify-between">
+            <div className="font-semibold">Μονάδα — Tablet</div>
+          </div>
         </div>
-      </div>
+      )}
       <div className="p-4 overflow-auto">
         {/* Removed global filters above Unit Tablet tabs as requested */}
 
@@ -2776,22 +3419,27 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
 
           return (
             <div className="bg-white border rounded p-3">
-              <TabBar
-                tabs={[
-                  { key: 'weigh', label: 'Ζύγιση', count: openList.length },
-                  { key: 'awaiting', label: 'Εκκρεμή για υπογραφή', count: awaitingList.length },
-                  { key: 'completed', label: 'Ολοκληρωμένες', count: completedList.length },
-                  { key: 'slips', label: 'Δελτία παραλαβής', count: slips.length },
-                ]}
-                active={tab}
-                onChange={(k: string) => setTab((k as any) || 'weigh')}
-              />
+              {!hideChrome && (
+                <TabBar
+                  tabs={[
+                    { key: 'weigh', label: 'Ζύγιση', count: openList.length },
+                    { key: 'awaiting', label: 'Εκκρεμή για υπογραφή', count: awaitingList.length },
+                    { key: 'completed', label: 'Ολοκληρωμένες', count: completedList.length },
+                    { key: 'slips', label: 'Δελτία παραλαβής', count: slips.length },
+                  ]}
+                  active={tab}
+                  onChange={(k: string) => setTab((lockTab as any) || (k as any) || 'weigh')}
+                />
+              )}
 
               {tab === 'weigh' && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <button onClick={() => setWSubTab('open')} className={`px-3 py-2 ${wSubTab === 'open' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Ανοιχτές μεταφορές</button>
-                    <button onClick={() => setWSubTab('receive')} className={`px-3 py-2 ${wSubTab === 'receive' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Παραλαβή (Εκτός IWM)</button>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setWSubTab('receive')} className={`px-3 py-2 ${wSubTab === 'receive' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Χειροκίνητη Παραλαβή</button>
+                      <button onClick={() => setWSubTab('open')} className={`px-3 py-2 ${wSubTab === 'open' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Αυτόματη Παραλαβή</button>
+                    </div>
+                    <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100 text-sm" onClick={() => setAdminOpen(true)}>Database</button>
                   </div>
 
                   {wSubTab === 'open' && (
@@ -2835,52 +3483,213 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   {wSubTab === 'receive' && (
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {(() => {
-                        const offp = A(projects).filter((p: any) => p.offPlatformTransporter && !p.creatorTransporter);
-                        const producerOpts = [...new Set(offp.map((p: any) => p.producer))];
-                        const projectOpts = [...new Set(offp.filter((p: any) => !wForm.producer || p.producer === wForm.producer).map((p: any) => p.projectName))];
+                        // Dynamic platform data
+                        const platformProducers = [...new Set(A(projects).map((p: any) => p.producer).filter(Boolean))];
+                        const allProducers = Array.from(new Set([...(platformProducers as string[]), ...offlineProducers])).sort();
+                        const projectOpts = (() => {
+                          if (wForm.producer) {
+                            const platformForProducer = A(projects).filter((p:any)=> p.producer === wForm.producer).map((p:any)=> p.projectName).filter(Boolean);
+                            const offlineForProducer = offlineProjects[wForm.producer] || [];
+                            return Array.from(new Set([...(platformForProducer as string[]), ...offlineForProducer])).sort();
+                          }
+                          const platformAll = A(projects).map((p:any)=> p.projectName).filter(Boolean);
+                          const offlineAll = Object.values(offlineProjects).flat();
+                          return Array.from(new Set([...(platformAll as string[]), ...offlineAll])).sort();
+                        })();
                         return (
                           <>
-                            <label className="col-span-2">Παραγωγός
-                              <input list="dl-recv-producers" className="border p-1 w-full" placeholder="Πληκτρολόγησε ή επέλεξε παραγωγό" value={wForm.producer} onChange={(e: any) => setWForm((f: any) => ({ ...f, producer: e.target.value }))} />
-                              <datalist id="dl-recv-producers">
-                                {producerOpts.map((name: string) => (<option key={name} value={name} />))}
-                              </datalist>
+                            {/* Row 1: Plate, Transporter */}
+                            <label>Αρ. Οχήματος
+                              {(() => {
+                                const trSel = (wForm.transporter || '').trim();
+                                const basePlates = trSel ? (transporterPlates[trSel] || []) : Object.values(transporterPlates).flat();
+                                const offlinePlatesAll = trSel ? (offlineTransPlates[trSel] || []) : Object.values(offlineTransPlates).flat();
+                                const allPlates: string[] = Array.from(new Set([...(basePlates as string[]), ...(offlinePlatesAll as string[])]));
+                                const plateOwner: Record<string,string> = {};
+                                Object.entries(transporterPlates).forEach(([tr, arr]) => { (arr||[]).forEach((pl:string)=> { plateOwner[pl] = tr; }); });
+                                Object.entries(offlineTransPlates).forEach(([tr, arr]) => { (arr||[]).forEach((pl:string)=> { plateOwner[pl] = tr; }); });
+                                return (
+                                  <>
+                                    <input
+                                      className="border p-1 w-full"
+                                      placeholder="Πληκτρολόγησε ή επίλεξε αριθμό"
+                                      list="dl-plates"
+                                      value={wForm.plate}
+                                      onChange={(e:any) => {
+                                        const val = e.target.value.trim();
+                                        setWForm((f:any)=> {
+                                          const next:any = { ...f, plate: val };
+                                          if (!f.transporter && plateOwner[val]) next.transporter = plateOwner[val];
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                    <datalist id="dl-plates">
+                                      {allPlates.map((pl)=> (<option key={pl} value={pl} />))}
+                                    </datalist>
+                                  </>
+                                );
+                              })()}
                             </label>
+                            <label>Μεταφορέας
+                              <div className="flex items-center gap-2">
+                                {(() => {
+                                  const inPlatform = new Set(['Euroskip','Skip Hire']);
+                                  const options = Array.from(new Set([...
+                                    transporterList,
+                                    ...offlineTransporters,
+                                  ]));
+                                  const selected = wForm.transporter;
+                                  const selIsPlatform = selected ? inPlatform.has(selected) : false;
+                                  return (
+                                    <div className="relative flex-1">
+                                      <button type="button" className="w-full border p-1 text-left bg-white rounded" onClick={() => setTrDropOpen(v => !v)}>
+                                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${selected ? (selIsPlatform ? 'bg-green-500' : 'bg-red-500') : 'bg-gray-300'}`}></span>
+                                        {selected || '— Επιλογή —'}
+                                      </button>
+                                      {trDropOpen && (
+                                        <div className="absolute z-20 mt-1 w-full bg-white border rounded shadow">
+                                          <button className="w-full text-left px-2 py-1 hover:bg-gray-50" onClick={() => { setWForm((f:any)=> ({ ...f, transporter: '' })); setTrDropOpen(false); }}>
+                                            <span className="inline-block w-2 h-2 rounded-full mr-2 bg-gray-300"></span>
+                                            — Επιλογή —
+                                          </button>
+                                          {options.map((name: string) => (
+                                            <button key={name} className="w-full text-left px-2 py-1 hover:bg-gray-50" onClick={() => { setWForm((f:any)=> ({ ...f, transporter: name })); setTrDropOpen(false); }}>
+                                              <span className={`inline-block w-2 h-2 rounded-full mr-2 ${inPlatform.has(name) ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                              {name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100"
+                                  title="Προσθήκη νέου Μεταφορέα"
+                                  onClick={() => {
+                                    const name = (prompt('Νέος Μεταφορέας') || '').trim();
+                                    if (!name) return;
+                                    setOfflineTransporters((prev)=> prev.includes(name) ? prev : [...prev, name]);
+                                    setWForm((f:any)=> ({ ...f, transporter: name }));
+                                  }}
+                                >+
+                                </button>
+                              </div>
+                            </label>
+
+                            {/* Row 2: Project, Producer */}
                             <label>Έργο
-                              <input list="dl-recv-projects" className="border p-1 w-full" placeholder="Πληκτρολόγησε ή επέλεξε έργο" value={wForm.project} onChange={(e: any) => setWForm((f: any) => ({ ...f, project: e.target.value }))} />
-                              <datalist id="dl-recv-projects">
-                                {projectOpts.map((nm: string) => (<option key={nm} value={nm} />))}
-                              </datalist>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  className="border p-1 w-full"
+                                  placeholder="Πληκτρολόγησε ή επίλεξε έργο"
+                                  list="dl-unit-projects"
+                                  value={wForm.project}
+                                  onChange={(e: any) => {
+                                    const val = e.target.value;
+                                    setWForm((f: any) => ({ ...f, project: val }));
+                                    if (!wForm.producer && val) {
+                                      const match = A(projects).find((p:any)=> p.projectName === val);
+                                      if (match && match.producer) {
+                                        setWForm((f:any)=> ({ ...f, producer: match.producer }));
+                                      } else {
+                                        const found = Object.entries(offlineProjects).find(([,list])=> Array.isArray(list) && list.includes(val));
+                                        if (found) {
+                                          const [prod] = found;
+                                          setWForm((f:any)=> ({ ...f, producer: prod }));
+                                        }
+                                      }
+                                    }
+                                  }}
+                                />
+                                <datalist id="dl-unit-projects">
+                                  {projectOpts.map((nm: string) => (<option key={nm} value={nm} />))}
+                                </datalist>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100"
+                                  title="Προσθήκη νέου Έργου"
+                                  onClick={() => {
+                                    if (!wForm.producer) { alert('Επιλέξτε πρώτα Παραγωγό'); return; }
+                                    const nm = (prompt('Νέο Έργο') || '').trim();
+                                    if (!nm) return;
+                                    setOfflineProjects((prev) => {
+                                      const cur = prev[wForm.producer] || [];
+                                      const next = cur.includes(nm) ? cur : [...cur, nm];
+                                      return { ...prev, [wForm.producer]: next };
+                                    });
+                                    setWForm((f: any) => ({ ...f, project: nm }));
+                                  }}
+                                >+
+                                </button>
+                              </div>
                             </label>
+                            <label>Παραγωγός
+                              <div className="flex items-center gap-2">
+                                <select className="border p-1 w-full" value={wForm.producer} onChange={(e: any) => setWForm((f: any) => ({ ...f, producer: e.target.value }))}>
+                                  <option value="">— Επιλογή Παραγωγού —</option>
+                                  {allProducers.map((name: string) => (<option key={name} value={name}>{name}</option>))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100"
+                                  title="Προσθήκη νέου Παραγωγού"
+                                  onClick={() => {
+                                    const name = (prompt('Νέος Παραγωγός') || '').trim();
+                                    if (!name) return;
+                                    setOfflineProducers((prev) => (prev.includes(name) ? prev : [...prev, name]));
+                                    setWForm((f: any) => ({ ...f, producer: name }));
+                                  }}
+                                >+
+                                </button>
+                              </div>
+                            </label>
+
+                            {/* Row 3: Debtor (full width) */}
+                            <label className="col-span-2">Χρεώστης
+                              <div className="flex items-center gap-2">
+                                <select className="border p-1 w-full" value={wForm.debtor} onChange={(e: any) => setWForm((f: any) => ({ ...f, debtor: e.target.value }))}>
+                                  <option value="">— Επιλογή —</option>
+                                  {Array.from(new Set([...
+                                    DEBTOR_OPTIONS,
+                                    ...offlineDebtors,
+                                  ])).map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100"
+                                  title="Προσθήκη νέου Χρεώστη"
+                                  onClick={() => {
+                                    const name = (prompt('Νέος Χρεώστης') || '').trim();
+                                    if (!name) return;
+                                    setOfflineDebtors((prev)=> prev.includes(name) ? prev : [...prev, name]);
+                                    setWForm((f:any)=> ({ ...f, debtor: name }));
+                                  }}
+                                >+
+                                </button>
+                              </div>
+                            </label>
+
+                            {/* Row 4: EKA, Weight */}
+                            <label>Κατηγορία ΕΚΑ
+                              <select className="border p-1 w-full" value={wForm.eka} onChange={(e: any) => setWForm((f: any) => ({ ...f, eka: e.target.value }))}>
+                                {EKA.map(e => (<option key={e.code} value={e.code}>{e.code} — {e.description}</option>))}
+                              </select>
+                            </label>
+                            <div>
+                              <label>Βάρος (tn)
+                                <input type="number" className="border p-1 w-full" value={wForm.weight} onChange={(e: any) => setWForm((f: any) => ({ ...f, weight: e.target.value }))} />
+                              </label>
+                              <button className="mt-1 px-2 py-1 border rounded text-xs" onClick={randomWeigh}>Τυχαία Ζύγιση</button>
+                            </div>
                           </>
                         );
                       })()}
-                      <label>Μεταφορέας
-                        <select className="border p-1 w-full" value={wForm.transporter} onChange={(e: any) => setWForm((f: any) => ({ ...f, transporter: e.target.value, plate: '' }))}>
-                          <option value="">— Επιλογή —</option>
-                          {transporterList.map((name: string) => (<option key={name} value={name}>{name}</option>))}
-                        </select>
-                      </label>
-                      <label>Αρ. Οχήματος
-                        <select className="border p-1 w-full" value={wForm.plate} onChange={(e: any) => setWForm((f: any) => ({ ...f, plate: e.target.value }))}>
-                          <option value="">— Επιλογή —</option>
-                          {(transporterPlates[wForm.transporter] || []).map((pl: string) => (<option key={pl} value={pl}>{pl}</option>))}
-                        </select>
-                      </label>
-                      <label>Κατηγορία ΕΚΑ
-                        <select className="border p-1 w-full" value={wForm.eka} onChange={(e: any) => setWForm((f: any) => ({ ...f, eka: e.target.value }))}>
-                          {EKA.map(e => (<option key={e.code} value={e.code}>{e.code} — {e.description}</option>))}
-                        </select>
-                      </label>
-                      <div>
-                        <label>Βάρος (tn)
-                          <input type="number" className="border p-1 w-full" value={wForm.weight} onChange={(e: any) => setWForm((f: any) => ({ ...f, weight: e.target.value }))} />
-                        </label>
-                        <button className="mt-1 px-2 py-1 border rounded text-xs" onClick={randomWeigh}>Τυχαία Ζύγιση</button>
-                      </div>
                       {/* Χωρίς πεδίο υπογραφής για Παραλαβή (εκτός IWM) */}
                       <div className="col-span-2 flex justify-end gap-2">
-                        <button className="px-3 py-2 rounded bg-gray-200" onClick={() => setWForm({ project: '', producer: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '', signature: '' })}>Καθαρισμός</button>
+                        <button className="px-3 py-2 rounded bg-gray-200" onClick={() => setWForm({ project: '', producer: '', debtor: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '', signature: '' })}>Καθαρισμός</button>
                         <button className="px-3 py-2 rounded bg-green-600 text-white" onClick={() => submitWeighSlip(false)}>Καταχώριση</button>
                         <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={() => submitWeighSlip(true)}>Καταχώριση και Εκτύπωση</button>
                       </div>
@@ -2893,6 +3702,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                 (() => {
                   const slipProducers = [...new Set(A(slips).map((s:any)=>s.producer).filter(Boolean))];
                   const slipProjects = [...new Set(A(slips).map((s:any)=>s.project).filter(Boolean))];
+                  const slipDebtors = [...new Set(A(slips).map((s:any)=>s.debtor).filter(Boolean))];
                   const slipTransporters = [...new Set(A(slips).map((s:any)=>s.transporter).filter(Boolean))];
                   const slipVehiclesAll = [...new Set(A(slips).map((s:any)=>s.vehicle).filter(Boolean))];
                   const slipVehicles = slipsFilter.transporter
@@ -2908,6 +3718,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   const rows = A(slips).filter((s:any)=> {
                     if (slipsFilter.producer && s.producer !== slipsFilter.producer) return false;
                     if (slipsFilter.project && s.project !== slipsFilter.project) return false;
+                    if (slipsFilter.debtor && s.debtor !== slipsFilter.debtor) return false;
                     if (slipsFilter.transporter && s.transporter !== slipsFilter.transporter) return false;
                     if (slipsFilter.vehicle && s.vehicle !== slipsFilter.vehicle) return false;
                     if (!inRange(s.date)) return false;
@@ -2916,7 +3727,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   const totalWeight = rows.reduce((acc:number, s:any)=> acc + (parseFloat(String(s.weight||'0'))||0), 0);
                   const exportCSV = () => {
                     const filename = `slips_${today()}_${Date.now()}.csv`;
-                    const cols = ['date','time','producer','project','transporter','vehicle','ekaCategory','weight'];
+                    const cols = ['date','time','producer','project','debtor','transporter','vehicle','ekaCategory','weight'];
                     downloadCSV(filename, rows, cols);
                   };
                   return (
@@ -2925,10 +3736,12 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
                           <div className="text-base font-semibold">Δελτία παραλαβής</div>
-                          <div className="text-xs text-gray-600">Εγγραφές: <span className="font-medium">{rows.length}</span> • Σύνολο βαρών: <span className="font-medium">{totalWeight.toFixed(2)} tn</span></div>
+                          {!hideChrome && (
+                            <div className="text-xs text-gray-600">Εγγραφές: <span className="font-medium">{rows.length}</span> • Σύνολο βαρών: <span className="font-medium">{totalWeight.toFixed(2)} tn</span></div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button className="px-3 py-2 text-sm rounded-lg border border-gray-300" onClick={()=> setSlipsFilter({ producer:'', project:'', transporter:'', vehicle:'', from:'', to:'' })}>Επαναφορά</button>
+                          <button className="px-3 py-2 text-sm rounded-lg border border-gray-300" onClick={()=> setSlipsFilter({ producer:'', project:'', debtor:'', transporter:'', vehicle:'', from:'', to:'' })}>Επαναφορά</button>
                           <button className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white" onClick={exportCSV}>Εξαγωγή CSV</button>
                         </div>
                       </div>
@@ -2948,6 +3761,13 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                             <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.project} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, project: e.target.value })}>
                               <option value="">— Όλα —</option>
                               {slipProjects.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
+                            </select>
+                          </div>
+                          <div className="flex flex-col">
+                            <label className="text-xs text-gray-500 mb-1">Χρεώστης</label>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.debtor} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, debtor: e.target.value })}>
+                              <option value="">— Όλοι —</option>
+                              {slipDebtors.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
@@ -2976,38 +3796,40 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                       </div>
 
                       {/* Table */}
-                      <div className="bg-white border border-gray-200 rounded-xl shadow-sm max-h-[60vh] overflow-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10">
+                      <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${hideChrome ? '' : 'max-h-[60vh] overflow-auto'}`}>
+                        <table className={`w-full ${hideChrome ? 'text-xs' : 'text-sm'}`}>
+                          <thead className={`bg-gray-50 text-gray-700 ${hideChrome ? '' : 'sticky top-0 z-10'}`}>
                             <tr className="divide-x divide-gray-200">
-                              <th className="px-2 py-2 text-center">Α/Α</th>
-                              <th className="px-2 py-2 text-center">Παραγωγός</th>
-                              <th className="px-2 py-2 text-center">Έργο</th>
-                              <th className="px-2 py-2 text-center">Μεταφορέας</th>
-                              <th className="px-2 py-2 text-center">Αρ. Οχήματος</th>
-                              <th className="px-2 py-2 text-center">Ημ/νία</th>
-                              <th className="px-2 py-2 text-center">Ώρα</th>
-                              <th className="px-2 py-2 text-center">Βάρος (tn)</th>
-                              <th className="px-2 py-2 text-center">ΕΚΑ</th>
-                              <th className="px-2 py-2 text-center">PDF</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Α/Α</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Παραγωγός</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Έργο</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Χρεώστης</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Μεταφορέας</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Αρ. Οχήματος</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Ημ/νία</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Ώρα</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>Βάρος (tn)</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>ΕΚΑ</th>
+                              <th className={`${hideChrome ? 'px-1 py-1 text-[11px]' : 'px-2 py-2'} text-center`}>PDF</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                             {rows.length === 0 ? (
-                              <tr><td className="text-center p-4 text-gray-500" colSpan={10}>Δεν βρέθηκαν δελτία</td></tr>
+                              <tr><td className="text-center p-4 text-gray-500" colSpan={11}>Δεν βρέθηκαν δελτία</td></tr>
                             ) : (
                               rows.map((s: any, i: number) => (
                                 <tr key={s.id} className="hover:bg-gray-50">
-                                  <td className="text-center px-2 py-1">{i + 1}</td>
-                                  <td className="text-center px-2 py-1">{s.producer}</td>
-                                  <td className="text-center px-2 py-1">{s.project}</td>
-                                  <td className="text-center px-2 py-1">{s.transporter}</td>
-                                  <td className="text-center px-2 py-1">{s.vehicle}</td>
-                                  <td className="text-center px-2 py-1">{fmt(s.date)}</td>
-                                  <td className="text-center px-2 py-1">{s.time}</td>
-                                  <td className="text-center px-2 py-1">{s.weight}</td>
-                                  <td className="text-center px-2 py-1">{s.ekaCategory}</td>
-                                  <td className="text-center px-2 py-1"><Btn className="bg-gray-100" onClick={() => pdfSlip(s)}>PDF</Btn></td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{i + 1}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.producer}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.project}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.debtor}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.transporter}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.vehicle}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{fmt(s.date)}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.time}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.weight}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}>{s.ekaCategory}</td>
+                                  <td className={`text-center ${hideChrome ? 'px-1 py-1' : 'px-2 py-1'}`}><Btn className="bg-gray-100" onClick={() => pdfSlip(s)}>PDF</Btn></td>
                                 </tr>
                               ))
                             )}
@@ -3047,13 +3869,13 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                           <td className="border text-center">{fmt(t.unitDate)}</td>
                           <td className="border text-center">
                             {t.status === 'Completed' ? (
-                              <span className="text-green-700 font-semibold">Completed</span>
+                              <span className="text-green-700 font-semibold">Ολοκληρώθηκε</span>
                             ) : t.status === 'Waiting for transporter signature' ? (
-                              <span className="text-blue-700">Waiting for transporter signature</span>
+                              <span className="text-blue-700">Αναμονή για υπογραφή μεταφορέα</span>
                             ) : t.status === 'Waiting for unit signature' ? (
-                              <span className="text-blue-700">Waiting for unit signature</span>
+                              <span className="text-blue-700">Αναμονή για υπογραφή μονάδας</span>
                             ) : (
-                              <span className="text-blue-700">{t.status || 'Waiting'}</span>
+                              <span className="text-blue-700">{t.status ? t.status : 'Αναμονή'}</span>
                             )}
                           </td>
                           <td className="border text-center">
@@ -3062,7 +3884,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                               disabled={t.status !== 'Waiting for unit signature'}
                               onClick={() => setUnitSignModal({ open: true, id: t.id, signature: '' })}
                             >
-                              Sign
+                              Υπογραφή
                             </Btn>
                           </td>
                         </tr>
@@ -3303,10 +4125,162 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   </label>
                 </div>
 
+                <div className="font-semibold">Στοιχεία χρέωσης</div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <label className="col-span-2">Χρεώστης
+                    <select className="border p-1 w-full" value={weighData.debtor || ''} onChange={(e: any) => setWeighData({ ...weighData, debtor: e.target.value })}>
+                      <option value="">— Επιλογή —</option>
+                      {DEBTOR_OPTIONS.map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                    </select>
+                  </label>
+                </div>
+
                 {/* Το βάρος προ-συμπληρώνεται τυχαία στο tablet (openWeigh) και μπορεί να τροποποιηθεί πριν την ολοκλήρωση */}
               </div>
             );
           })()}
+        </Modal>
+      )}
+
+      {/* Unknown Project Registration Flow (Centered Popups) - moved into UnitTabletApp scope */}
+      {projReg.open && projReg.step === 'ask' && (
+        <Modal title="Καταχώριση Έργου" onClose={() => { setProjReg((m:any)=> ({ ...m, open: false })); continueWeighSlip(projReg.andPrint); }} inside={false}>
+          <div className="space-y-3 text-sm">
+            <div>
+              Θέλεις να καταχωρήσεις το Έργο "<span className="font-semibold">{projReg.project}</span>";
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded bg-gray-200" onClick={() => { setProjReg((m:any)=> ({ ...m, open: false })); continueWeighSlip(projReg.andPrint); }}>Όχι</button>
+              <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={() => setProjReg((m:any)=> ({ ...m, step: 'form' }))}>Ναι</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {projReg.open && projReg.step === 'form' && (
+        <Modal title="Νέο Έργο" onClose={() => { setProjReg((m:any)=> ({ ...m, open: false })); continueWeighSlip(projReg.andPrint); }} onSubmit={() => {
+          if (!projReg.producer || !projReg.producer.trim()) { alert('Συμπλήρωσε Παραγωγό'); return; }
+          // Do not persist yet as requested; just proceed
+          // reflect chosen producer in form for UX continuity
+          if (!wForm.producer) setWForm((f:any)=> ({ ...f, producer: projReg.producer }));
+          setProjReg((m:any)=> ({ ...m, open: false }));
+          continueWeighSlip(projReg.andPrint);
+        }} submitLabel="OK">
+          <div className="space-y-3 text-sm">
+            <label className="block">Έργο
+              <input className="border p-1 w-full bg-gray-100" value={projReg.project} readOnly />
+            </label>
+            <label className="block">Παραγωγός
+              <input className="border p-1 w-full" value={projReg.producer || ''} onChange={(e:any)=> setProjReg((m:any)=> ({ ...m, producer: e.target.value }))} />
+            </label>
+          </div>
+        </Modal>
+      )}
+
+      {adminOpen && (
+        <Modal title="Database" onClose={() => setAdminOpen(false)} inside={false}>
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="font-semibold mb-2">Μεταφορέας</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="col-span-2">Νέος Μεταφορέας
+                  <div className="flex gap-2">
+                    <input className="border p-1 w-full" value={adminForm.transporter} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, transporter: e.target.value }))} />
+                    <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100" onClick={()=>{
+                      const name = (adminForm.transporter||'').trim(); if (!name) return;
+                      setOfflineTransporters((prev)=> prev.includes(name) ? prev : [...prev, name]);
+                      setAdminForm((f:any)=> ({ ...f, transporter: '' }));
+                    }}>Προσθήκη</button>
+                  </div>
+                </label>
+                <label>Μεταφορέας για Όχημα
+                  <select className="border p-1 w-full" value={adminForm.plateTransporter} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, plateTransporter: e.target.value }))}>
+                    <option value="">— Επιλογή —</option>
+                    {Array.from(new Set([...
+                      transporterList,
+                      ...offlineTransporters,
+                    ])).map((nm:string)=> (<option key={nm} value={nm}>{nm}</option>))}
+                  </select>
+                </label>
+                <label>Αρ. Οχήματος
+                  <div className="flex gap-2">
+                    <input className="border p-1 w-full" value={adminForm.plate} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, plate: e.target.value.toUpperCase() }))} />
+                    <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100" onClick={()=>{
+                      const tr = (adminForm.plateTransporter||'').trim(); const pl = (adminForm.plate||'').trim(); if (!tr || !pl) return;
+                      setOfflineTransPlates((prev)=> {
+                        const cur = prev[tr] || [];
+                        const next = cur.includes(pl) ? cur : [...cur, pl];
+                        return { ...prev, [tr]: next };
+                      });
+                      setAdminForm((f:any)=> ({ ...f, plate: '' }));
+                    }}>Προσθήκη</button>
+                  </div>
+                </label>
+                {adminForm.plateTransporter && (
+                  <div className="col-span-2 text-xs text-gray-600">
+                    <div className="mb-1">Οχήματα (offline) για {adminForm.plateTransporter}:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {(offlineTransPlates[adminForm.plateTransporter]||[]).map((pl:string)=> (
+                        <span key={pl} className="px-2 py-0.5 border rounded bg-gray-50">{pl}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="font-semibold mb-2">Παραγωγός</div>
+              <div className="flex gap-2">
+                <input className="border p-1 w-full" value={adminForm.producer} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, producer: e.target.value }))} />
+                <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100" onClick={()=>{
+                  const name = (adminForm.producer||'').trim(); if (!name) return;
+                  setOfflineProducers((prev)=> prev.includes(name) ? prev : [...prev, name]);
+                  setAdminForm((f:any)=> ({ ...f, producer: '' }));
+                }}>Προσθήκη</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="font-semibold mb-2">Έργο</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label>Παραγωγός
+                  <select className="border p-1 w-full" value={adminForm.projectProducer} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, projectProducer: e.target.value }))}>
+                    <option value="">— Επιλογή Παραγωγού —</option>
+                    {Array.from(new Set([...
+                      A(projects).map((p:any)=> p.producer).filter(Boolean),
+                      offlineProducers,
+                    ])).filter(Boolean).map((nm:string)=> (<option key={nm} value={nm}>{nm}</option>))}
+                  </select>
+                </label>
+                <label>Όνομα Έργου
+                  <div className="flex gap-2">
+                    <input className="border p-1 w-full" value={adminForm.project} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, project: e.target.value }))} />
+                    <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100" onClick={()=>{
+                      const prod = (adminForm.projectProducer||'').trim(); const nm = (adminForm.project||'').trim(); if (!prod || !nm) return;
+                      setOfflineProjects((prev)=> {
+                        const cur = prev[prod] || [];
+                        const next = cur.includes(nm) ? cur : [...cur, nm];
+                        return { ...prev, [prod]: next };
+                      });
+                      setAdminForm((f:any)=> ({ ...f, project: '' }));
+                    }}>Προσθήκη</button>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <div className="font-semibold mb-2">Χρεώστης</div>
+              <div className="flex gap-2">
+                <input className="border p-1 w-full" value={adminForm.debtor} onChange={(e:any)=> setAdminForm((f:any)=> ({ ...f, debtor: e.target.value }))} />
+                <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100" onClick={()=>{
+                  const name = (adminForm.debtor||'').trim(); if (!name) return;
+                  setOfflineDebtors((prev)=> prev.includes(name) ? prev : [...prev, name]);
+                  setAdminForm((f:any)=> ({ ...f, debtor: '' }));
+                }}>Προσθήκη</button>
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
@@ -3314,7 +4288,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
 }
 
 // Producer mobile frame and app
-function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, notifications, onJump, deepLink, onOpenProject }: any) {
+function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, onDismissRequest, notifications, onJump, deepLink, onOpenProject, onClearTransNew, onClearProjectsNew }: any) {
   return (
     <div className="flex justify-center items-center min-h-[700px] bg-gray-200 rounded-lg">
       <div className="relative bg-black p-4 rounded-[3rem] w-[380px] h-[780px] shadow-2xl border-[8px] border-gray-900">
@@ -3327,10 +4301,13 @@ function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequ
             onReject={onReject}
             onRequest={onRequest}
             onCancelRequest={onCancelRequest}
+            onDismissRequest={onDismissRequest}
             notifications={notifications}
             onJump={onJump}
             deepLink={deepLink}
             onOpenProject={onOpenProject}
+            onClearTransNew={onClearTransNew}
+            onClearProjectsNew={onClearProjectsNew}
           />
         </div>
       </div>
@@ -3338,36 +4315,56 @@ function ProducerMobileFrame({ projects, transports, onApprove, onReject, onRequ
   );
 }
 
-function ProducerMobileApp({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, notifications, onJump, onOpenProject }: any) {
+function ProducerMobileApp({ projects, transports, onApprove, onReject, onRequest, onCancelRequest, onDismissRequest, notifications, onJump, onOpenProject, onClearTransNew, onClearProjectsNew }: any) {
   const [tab, setTab] = useState('projects');
   const [show, setShow] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [myRequestsOpen, setMyRequestsOpen] = useState(false);
   const [ntProjectId, setNtProjectId] = useState('');
-  const [ntForm, setNtForm] = useState({ address: '', unit: '', transporter: '', requestType: '', vehicle: '' });
+  const [ntForm, setNtForm] = useState({ address: '', unit: '', transporter: '', requestType: 'change-bin', vehicle: '' });
   const [signModal, setSignModal] = useState<any>({ open: false, id: null, signature: '' });
   const [detailRow, setDetailRow] = useState<any>(null);
+  const [reqTypeModal, setReqTypeModal] = useState<any>({ open: false, project: null as any, type: 'change-bin' as 'change-bin' | 'new-bin' | 'move-bin' });
+  // Mobile new request: choose target (transporter vs unit)
+  const [newReqTarget, setNewReqTarget] = useState<'transporter' | 'unit'>('transporter');
+  // Unit order form on mobile
+  const [unitProducts, setUnitProducts] = useState<any[]>([]);
+  const [prodOrderForm, setProdOrderForm] = useState<{ product: string; quantity: string }>({ product: '', quantity: '' });
+  const refreshUnitProducts = () => { try { const raw = localStorage.getItem('iwm_unit_products'); const arr = raw ? JSON.parse(raw) : []; setUnitProducts(Array.isArray(arr) ? arr : []); } catch { setUnitProducts([]); } };
   const myProducer = 'Παραγωγός Α';
   const [reqFilter, setReqFilter] = useState<'all' | 'carrier' | 'producer'>('all');
 
   const req = A(transports).filter((t: any) => t.producer === myProducer && !t.approvedByProducer && !t.receivedByUnit);
-  const producerReq = req.filter((t: any) => t.fromProducer && t.requestType === 'change-bin');
+  const producerReq = req.filter((t: any) => t.fromProducer && ['change-bin','new-bin','move-bin'].includes(t.requestType));
   const carrierReq = req.filter((t: any) => !t.fromProducer);
   const open = A(transports).filter((t: any) => t.producer === myProducer && t.approvedByProducer && !t.receivedByUnit);
   const done = A(transports).filter((t: any) => t.producer === myProducer && t.receivedByUnit);
+  const myProjects = projectsByProducer(projects, myProducer);
+
+  // Dynamic, centered title per tab
+  const title = show
+    ? (tab === 'requests' ? 'Νέο Αίτημα' : 'Νέα Μεταφορά')
+    : (tab === 'requests' ? 'Αιτήματα' : tab === 'transfers' ? 'Μεταφορές' : 'Έργα');
+
+  // Simple toast for confirmations
+  const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
+  const notify = (msg: string) => {
+    setToast({ open: true, msg });
+    setTimeout(() => setToast({ open: false, msg: '' }), 2000);
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-50 relative">
-      {/* Header with left menu and centered title */}
-      <div className="mobile-header safe-top px-4 py-3">
-        <div className="flex items-center justify-between">
+  {/* Header with left menu and centered title */}
+  <div className="mobile-header safe-top px-4">
+    <div className="h-14 flex items-center justify-between">
           <button aria-label="Μενού" onClick={() => setMenuOpen(true)} className="p-1">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="font-semibold text-center">IWM</div>
+          <div className="font-semibold text-center">{title}</div>
           <BellBtn items={A(notifications).filter((n: any) => n.target?.page === 'producer')} onJump={onJump} />
         </div>
       </div>
@@ -3377,14 +4374,23 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
           <div className="p-4 space-y-3 animate-in">
             <div className="flex items-center justify-between mb-2">
               <button className="text-blue-700" onClick={() => setShow(false)}>‹ Πίσω</button>
-              <div className="font-semibold">{tab === 'requests' ? 'Νέο Αίτημα' : 'Νέα Μεταφορά'}</div>
+              <div className="font-semibold"></div>
               <div style={{ width: 40 }} />
             </div>
-            {/* Highlighted request box replaces the intro text for requests */}
+            {/* Target picker */}
+            <div className="inline-flex bg-gray-100 p-1 rounded-full">
+              <button onClick={() => setNewReqTarget('transporter')} className={`px-3 py-1.5 rounded-full text-sm ${newReqTarget === 'transporter' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Προς Μεταφορέα</button>
+              <button onClick={() => { setNewReqTarget('unit'); refreshUnitProducts(); }} className={`px-3 py-1.5 rounded-full text-sm ${newReqTarget === 'unit' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Προς Μονάδα</button>
+            </div>
+            {/* Highlighted info box for creation */}
             {tab === 'requests' ? (
               <div className="p-3 rounded-lg bg-gradient-to-r from-yellow-100 to-yellow-50 border border-yellow-200">
-                <div className="text-sm font-medium mb-2">Αίτημα Αλλαγής Κάδου</div>
-                <div className="text-xs text-gray-600">Ο μεταφορέας θα ενημερωθεί.</div>
+                <div className="text-sm font-medium mb-2">
+                  {newReqTarget === 'unit'
+                    ? 'Παραγγελία Υλικού'
+                    : (ntForm.requestType === 'new-bin' ? 'Αίτημα Νέου Κάδου' : ntForm.requestType === 'move-bin' ? 'Αίτημα Μεταφοράς Κάδου' : 'Αίτημα Αλλαγής Κάδου')}
+                </div>
+                <div className="text-xs text-gray-600">{newReqTarget === 'unit' ? 'Η Μονάδα θα ενημερωθεί.' : 'Ο μεταφορέας θα ενημερωθεί.'}</div>
               </div>
             ) : (
               <div className="text-sm text-gray-600">Επιλέξτε έργο για να δημιουργηθεί αίτημα μεταφοράς.</div>
@@ -3402,19 +4408,92 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
               </select>
             </label>
             <input readOnly className="border p-2 w-full rounded bg-gray-100" value={ntForm.address} placeholder="Διεύθυνση" />
-            <input readOnly className="border p-2 w-full rounded bg-gray-100" value={ntForm.transporter} placeholder="Μεταφορέας" />
+            {newReqTarget === 'transporter' && (
+              <input readOnly className="border p-2 w-full rounded bg-gray-100" value={ntForm.transporter} placeholder="Μεταφορέας" />
+            )}
             {tab === 'requests' ? (
               <>
-                <div className="flex gap-2 mt-3">
-                  <button className="flex-1 bg-gray-200 text-gray-800 px-3 py-2 rounded" onClick={() => { setShow(false); setNtForm({ address: '', unit: '', transporter: '', requestType: '', vehicle: '' }); setNtProjectId(''); }}>Άκυρο</button>
-                  <button className="flex-1 bg-yellow-600 text-white px-3 py-2 rounded" onClick={() => {
-                    const proj = A(projects).find((p: any) => p.id === ntProjectId);
-                    if (!proj) return;
-                    const rt = 'change-bin' as 'change-bin';
-                    onRequest && onRequest(proj, rt as any);
-                    setShow(false); setNtProjectId(''); setNtForm({ address: '', unit: '', transporter: '', requestType: '', vehicle: '' }); setTab('requests');
-                  }}>Αποστολή</button>
-                </div>
+                {newReqTarget === 'transporter' ? (
+                  <>
+                    {/* Request type selection */}
+                    <div className="mt-1">
+                      <div className="text-xs text-gray-600 mb-1">Τύπος αιτήματος</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button type="button" onClick={() => setNtForm(f => ({ ...f, requestType: 'new-bin' }))} className={`px-2 py-2 text-xs rounded border ${ntForm.requestType==='new-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Νέος κάδος</button>
+                        <button type="button" onClick={() => setNtForm(f => ({ ...f, requestType: 'change-bin' }))} className={`px-2 py-2 text-xs rounded border ${ntForm.requestType==='change-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Αλλαγή</button>
+                        <button type="button" onClick={() => setNtForm(f => ({ ...f, requestType: 'move-bin' }))} className={`px-2 py-2 text-xs rounded border ${ntForm.requestType==='move-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Μεταφορά</button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button className="flex-1 bg-gray-200 text-gray-800 px-3 py-2 rounded" onClick={() => { setShow(false); setNtForm({ address: '', unit: '', transporter: '', requestType: '', vehicle: '' }); setNtProjectId(''); }}>Άκυρο</button>
+                      <button className="flex-1 bg-yellow-600 text-white px-3 py-2 rounded" onClick={() => {
+                        const proj = A(projects).find((p: any) => p.id === ntProjectId);
+                        if (!proj) return;
+                        const rt = (ntForm.requestType || 'change-bin') as any;
+                        onRequest && onRequest(proj, rt);
+                        notify(rt === 'new-bin' ? 'Στάλθηκε αίτημα νέου κάδου' : rt === 'move-bin' ? 'Στάλθηκε αίτημα μεταφοράς κάδου' : 'Στάλθηκε αίτημα αλλαγής κάδου');
+                        setShow(false); setNtProjectId(''); setNtForm({ address: '', unit: '', transporter: '', requestType: '', vehicle: '' }); setTab('requests');
+                      }}>Αποστολή</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-2 mt-1">
+                      <label className="text-sm">Προϊόν
+                        <select className="border p-1 w-full rounded mt-1" value={prodOrderForm.product} onChange={(e:any)=> setProdOrderForm(f => ({ ...f, product: e.target.value }))}>
+                          <option value="">— Επιλογή —</option>
+                          {A(unitProducts).length === 0 ? (
+                            <option value="" disabled>Δεν υπάρχουν διαθέσιμα προϊόντα</option>
+                          ) : (
+                            unitProducts.map((p:any) => (<option key={p.id} value={p.name}>{p.name} {p.price ? `— €${p.price}` : ''}</option>))
+                          )}
+                        </select>
+                      </label>
+                      <label className="text-sm">Ποσότητα
+                        <input className="border p-1 w-full rounded" inputMode="decimal" placeholder="π.χ. 10" value={prodOrderForm.quantity} onChange={(e:any)=> setProdOrderForm(f => ({ ...f, quantity: e.target.value }))} />
+                      </label>
+                    </div>
+                    {A(unitProducts).length === 0 && (
+                      <div className="text-xs text-gray-500">Δεν έχουν οριστεί προϊόντα από τη Μονάδα.</div>
+                    )}
+                    <div className="flex gap-2 mt-3">
+                      <button className="flex-1 bg-gray-200 text-gray-800 px-3 py-2 rounded" onClick={() => { setShow(false); setNtProjectId(''); setProdOrderForm({ product: '', quantity: '' }); }}>Άκυρο</button>
+                      <button className="flex-1 bg-green-600 text-white px-3 py-2 rounded" onClick={() => {
+                        const proj = A(projects).find((p: any) => p.id === ntProjectId);
+                        if (!proj) return alert('Επιλέξτε έργο');
+                        const productName = (prodOrderForm.product || '').trim();
+                        const qtyNum = parseFloat(String(prodOrderForm.quantity).replace(',', '.'));
+                        if (!productName) { alert('Επιλέξτε προϊόν'); return; }
+                        if (!(qtyNum > 0)) { alert('Συμπληρώστε έγκυρη ποσότητα'); return; }
+                        try {
+                          const raw = localStorage.getItem('iwm_unit_product_orders');
+                          const arr = raw ? JSON.parse(raw) : [];
+                          const orders = Array.isArray(arr) ? arr : [];
+                          const order = {
+                            id: gid(),
+                            producer: myProducer,
+                            project: proj.projectName,
+                            projectId: proj.id,
+                            managerName: proj.managerName || '',
+                            managerPhone: proj.managerPhone || '',
+                            product: productName,
+                            quantity: qtyNum,
+                            date: today(),
+                            time: new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                            status: '',
+                          };
+                          const next = [order, ...orders];
+                          localStorage.setItem('iwm_unit_product_orders', JSON.stringify(next));
+                        } catch {}
+                        notify('Η παραγγελία καταχωρήθηκε.');
+                        setShow(false);
+                        setNtProjectId('');
+                        setProdOrderForm({ product: '', quantity: '' });
+                        setNewReqTarget('transporter');
+                      }}>Καταχώρηση</button>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="flex gap-2">
@@ -3432,12 +4511,40 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
           <>
             {tab === 'requests' && (
               <div className="p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold">Αιτήματα</div>
-                </div>
+                {/* Show producer's own pending requests first */}
+                {producerReq.length > 0 && (
+                  <div className="space-y-2">
+                    {producerReq.map((t: any) => {
+                      const typeLabel = t.requestType === 'new-bin' ? 'Νέος κάδος' : t.requestType === 'move-bin' ? 'Μεταφορά κάδου' : 'Αλλαγή κάδου';
+                      const accepted = !!t.acceptedByTransporter;
+                      return (
+                        <div key={t.id} className={`border rounded-lg p-3 shadow-sm text-sm ${accepted ? 'bg-green-50' : 'bg-yellow-50'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="font-semibold text-sm">{typeLabel} — {t.project}</div>
+                              <div className="text-xs text-gray-600 mt-1">{accepted ? 'Ο μεταφορέας αποδέχτηκε το αίτημα' : 'Σε αναμονή αποδοχής μεταφορέα'}</div>
+                            </div>
+                            <div className="w-36 flex-shrink-0 text-right">
+                              <div className="text-xs text-gray-500">Ημερομηνία</div>
+                              <div className="font-semibold">{fmt(t.date)}</div>
+                              <div className="text-xs text-gray-500 mt-1">Ώρα</div>
+                              <div className="font-medium">{t.time || '-'}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex justify-end gap-2">
+                            {!accepted ? (
+                              <button className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs" onClick={() => onCancelRequest && onCancelRequest(t.projectId, t.requestType)}>Ακύρωση</button>
+                            ) : (
+                              <button className="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs" onClick={() => onDismissRequest && onDismissRequest(t.id)}>Αφαίρεση</button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                {/* Only show transporter-created requests to the producer
-                    Replace Accept/Reject with a signature flow: the project manager must sign to approve */}
+                {/* Transporter-created requests for signature */}
                 {(() => {
                   const items = A(carrierReq)
                     .sort((a: any, b: any) => {
@@ -3445,7 +4552,18 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
                       const db = new Date(b.date || 0).getTime();
                       return db - da;
                     });
-                  if (items.length === 0) return <div className="text-center text-gray-400 text-sm">—</div>;
+                  if (items.length === 0 && producerReq.length === 0) return (
+                    <div className="text-center p-8">
+                      <div className="mx-auto w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-3">
+                        <Inbox className="w-7 h-7 text-indigo-600" />
+                      </div>
+                      <div className="font-medium">Δεν υπάρχουν νέα αιτήματα</div>
+                      <div className="text-xs text-gray-500 mt-1">Μπορείς να παραγγείλεις υλικό ή να αιτηθείς κάδο.</div>
+                      <div className="mt-3">
+                        <button className="px-3 py-2 rounded bg-yellow-600 text-white text-xs" onClick={() => { setTab('requests'); setShow(true); }}>Νέο Αίτημα</button>
+                      </div>
+                    </div>
+                  );
                   return items.map((t: any) => {
                     const bg = 'bg-blue-50';
                     const pr = A(projects).find((p: any) => p.id === t.projectId);
@@ -3481,7 +4599,6 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
 
             {tab === 'transfers' && (
               <div className="space-y-2">
-                <h3 className="font-semibold text-sm px-3">Μεταφορές</h3>
                 <MobileTransfersProducer
                   open={open}
                   done={done}
@@ -3491,23 +4608,43 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
             )}
 
             {tab === 'projects' && (
-              <div className="p-3 space-y-2">
-                <h3 className="font-semibold text-sm mb-1">Έργα</h3>
-                {projectsByProducer(projects, myProducer).map((p: any) => (
-                  <div key={p.id} className="mobile-card p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold truncate">{p.projectName}</div>
-                      {/* Ημερομηνίες κρυμμένες στο mobile έργα */}
+              <div className="p-3 space-y-3">
+                {myProjects.length === 0 ? (
+                  <div className="text-center p-10">
+                    <div className="mx-auto w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-3">
+                      <FileText className="w-7 h-7 text-indigo-600" />
                     </div>
-                    <div className="text-xs text-gray-600 truncate">{p.address}</div>
-                    {/* Μεταφορέας γραμμή πάνω από τη μονάδα, με το κουμπί Αίτημα δίπλα */}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-xs">Μεταφορέας: <span className="font-semibold">{p.transporter}</span></span>
-                      <button onClick={() => onOpenProject && onOpenProject(p)} className="px-2 py-1 rounded bg-gray-200 text-gray-800 text-xs">Περισσότερα</button>
-                    </div>
-                    <div className="text-xs mt-1">Μονάδα: <span className="font-semibold">{p.unit}</span></div>
+                    <div className="font-medium">Δεν βρέθηκαν έργα</div>
+                    <div className="text-xs text-gray-500 mt-1">Όταν δημιουργηθούν έργα θα εμφανιστούν εδώ.</div>
                   </div>
-                ))}
+                ) : myProjects.map((p: any) => {
+                  const initials = (p.projectName || '').split(' ').map((s: string) => s[0]).slice(0,2).join('').toUpperCase();
+                  return (
+                    <div key={p.id} className="mobile-card overflow-hidden p-0">
+                      {/* Header */}
+                      <div className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-semibold">{initials}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold truncate">{p.projectName}</div>
+                            <div className="text-xs text-indigo-100 truncate">{p.address}</div>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Body */}
+                      <div className="p-3 text-sm">
+                        <div className="grid grid-cols-1 gap-1 text-xs text-gray-700">
+                          <div>Μεταφορέας: <span className="font-semibold">{p.transporter}</span></div>
+                          <div>Μονάδα: <span className="font-semibold">{p.unit}</span></div>
+                        </div>
+                        {/* Actions */}
+                        <div className="mt-3 grid grid-cols-1 gap-2">
+                          <button onClick={() => onOpenProject && onOpenProject(p)} className="px-3 py-2 rounded bg-gray-100 text-gray-800 text-xs">Περισσότερα</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>
@@ -3518,36 +4655,92 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
       {!show && (
         <div className="mobile-nav safe-bottom relative">
           <div className="flex items-center gap-2 max-w-[380px] mx-auto p-2">
-            <button onClick={() => setTab('requests')} aria-pressed={tab==='requests'} aria-label="Αιτήματα" className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='requests' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
+            <button onClick={() => { onClearTransNew && onClearTransNew(); setTab('requests'); }} aria-pressed={tab==='requests'} aria-label="Αιτήματα" className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='requests' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
               <Inbox className="w-5 h-5" />
               {(producerReq.length + carrierReq.length) > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">{producerReq.length + carrierReq.length}</span>
               )}
             </button>
-            <button onClick={() => setTab('projects')} aria-pressed={tab==='projects'} aria-label="Έργα" className={`mobile-pressable relative flex-[1.6] flex items-center justify-center rounded-2xl py-3 shadow-2xl ${tab==='projects' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
+            <button onClick={() => { onClearProjectsNew && onClearProjectsNew(); setTab('projects'); }} aria-pressed={tab==='projects'} aria-label="Έργα" className={`mobile-pressable relative flex-[1.6] flex items-center justify-center rounded-2xl py-3 shadow-2xl ${tab==='projects' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
               <FileText className="w-6 h-6" />
             </button>
-            <button onClick={() => setTab('transfers')} aria-pressed={tab==='transfers'} aria-label="Μεταφορές" className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='transfers' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
+            <button onClick={() => { onClearTransNew && onClearTransNew(); setTab('transfers'); }} aria-pressed={tab==='transfers'} aria-label="Μεταφορές" className={`mobile-pressable relative flex-1 flex items-center justify-center rounded-xl py-2 ${tab==='transfers' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 border'}`}>
               <Truck className="w-5 h-5" />
               {open.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">{open.length}</span>
               )}
             </button>
           </div>
-          {/* Floating action for new request */}
-          <div className="absolute right-4 -top-10 md:-top-20">
-            <button onClick={() => setShow(true)} aria-label={tab==='requests' ? 'Νέο Αίτημα Κάδου' : 'Νέα Μεταφορά'} className={`rounded-full ${tab==='requests' ? 'bg-yellow-600' : 'bg-green-600'} text-white w-14 h-14 flex items-center justify-center fab-shadow mobile-pressable transition-all duration-300 ease-out hover:scale-105 active:scale-95`}>
-              {tab === 'requests' ? (
-                // simple bin SVG
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6h18M8 6v12a2 2 0 002 2h4a2 2 0 002-2V6M10 11v6m4-6v6M9 3h6l1 3H8l1-3z" />
-                </svg>
-              ) : (
-                '+'
-              )}
-            </button>
-          </div>
+          {/* Floating action: show only on Requests tab */}
+          {tab === 'requests' && (
+            <div className="absolute right-4 -top-10 md:-top-20">
+              <button
+                onClick={() => setShow(true)}
+                aria-label="Νέο Αίτημα Κάδου"
+                className="rounded-full bg-yellow-600 text-white w-14 h-14 flex items-center justify-center fab-shadow mobile-pressable transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+              >
+                <Inbox className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Toast */}
+      {toast.open && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-24 z-50">
+          <div className="bg-black/80 text-white text-sm px-3 py-2 rounded-full shadow-lg">{toast.msg}</div>
+        </div>
+      )}
+
+      {/* Αίτημα Κάδου (επιλογή τύπου) */}
+      {reqTypeModal.open && (
+        <Modal
+          title="Αίτημα Κάδου"
+          inside
+          onClose={() => setReqTypeModal({ open: false, project: null, type: 'change-bin' })}
+          onSubmit={() => {
+            if (onRequest && reqTypeModal.project) {
+              onRequest(reqTypeModal.project, reqTypeModal.type);
+              notify(reqTypeModal.type === 'new-bin' ? 'Στάλθηκε αίτημα νέου κάδου' : reqTypeModal.type === 'move-bin' ? 'Στάλθηκε αίτημα μεταφοράς κάδου' : 'Στάλθηκε αίτημα αλλαγής κάδου');
+            }
+            setReqTypeModal({ open: false, project: null, type: 'change-bin' });
+          }}
+          submitLabel="Αποστολή"
+        >
+          <div className="space-y-2 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-gray-500 text-xs">Παραγωγός</div>
+                <div className="font-medium">{reqTypeModal.project?.producer}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs">Έργο</div>
+                <div className="font-medium">{reqTypeModal.project?.projectName}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs">Διεύθυνση</div>
+                <div className="font-medium">{reqTypeModal.project?.address || '-'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs">Μονάδα</div>
+                <div className="font-medium">{reqTypeModal.project?.unit || '-'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs">Μεταφορέας</div>
+                <div className="font-medium">{reqTypeModal.project?.transporter || '-'}</div>
+              </div>
+            </div>
+            <div className="pt-2">
+              <div className="text-xs text-gray-600 mb-1">Τύπος αιτήματος</div>
+              <div className="grid grid-cols-3 gap-2">
+                <button type="button" onClick={() => setReqTypeModal((m: any) => ({ ...m, type: 'new-bin' }))} className={`px-2 py-2 text-xs rounded border ${reqTypeModal.type==='new-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Νέος Κάδος</button>
+                <button type="button" onClick={() => setReqTypeModal((m: any) => ({ ...m, type: 'change-bin' }))} className={`px-2 py-2 text-xs rounded border ${reqTypeModal.type==='change-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Αλλαγή Κάδου</button>
+                <button type="button" onClick={() => setReqTypeModal((m: any) => ({ ...m, type: 'move-bin' }))} className={`px-2 py-2 text-xs rounded border ${reqTypeModal.type==='move-bin' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700'}`}>Μεταφορά Κάδου</button>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Menu modal */}
@@ -3576,12 +4769,15 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
           </div>
           <div className="space-y-3">
             <div className="font-semibold text-sm">Ανοιχτά αιτήματα προς μεταφορέα</div>
-            {producerReq.length === 0 ? <div className="text-sm text-gray-400">—</div> : producerReq.map((t: any) => (
-              <div key={t.id} className="border rounded p-3 text-sm bg-indigo-50">
-                <div className="font-medium">Αλλαγή κάδου — {t.project}</div>
-                <div className="text-xs text-gray-600">{fmt(t.date)} {t.time || ''} — {t.address}</div>
-              </div>
-            ))}
+            {producerReq.length === 0 ? <div className="text-sm text-gray-400">—</div> : producerReq.map((t: any) => {
+              const typeLabel = t.requestType === 'new-bin' ? 'Νέος κάδος' : t.requestType === 'move-bin' ? 'Μεταφορά κάδου' : 'Αλλαγή κάδου';
+              return (
+                <div key={t.id} className="border rounded p-3 text-sm bg-indigo-50">
+                  <div className="font-medium">{typeLabel} — {t.project}</div>
+                  <div className="text-xs text-gray-600">{fmt(t.date)} {t.time || ''} — {t.address}</div>
+                </div>
+              );
+            })}
 
             <div className="font-semibold text-sm mt-3">Αιτήσεις προς μονάδα (συμφωνίες)</div>
             {open.length === 0 ? <div className="text-sm text-gray-400">—</div> : open.map((t: any) => (
@@ -3705,7 +4901,12 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
   const [tooltipAbove, setTooltipAbove] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [showDeliveryCompleteToast, setShowDeliveryCompleteToast] = useState(false);
+  const [showReqActionToast, setShowReqActionToast] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // dynamic, centered title per tab (replaces static IWM label)
+  const title = show
+    ? 'Νέα Μεταφορά'
+    : (tab === 'transfers' ? 'Μεταφορές' : tab === 'requests' ? 'Αιτήματα' : tab === 'projects' ? 'Έργα' : 'Ειδοποιήσεις');
   // external project add page state (independent screen)
   const [addExternalOpen, setAddExternalOpen] = useState(false);
   const [extForm, setExtForm] = useState({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '', transporterMode: 'self' as 'self' | 'other', otherTransporter: '' });
@@ -3726,7 +4927,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
 
   const VEH = ['ΚΥΧ1234', 'ΑΑΖ5678', 'ΒΒΚ4321', 'ΝΟΠ9988'];
   const req = A(transports).filter((t: any) => !t.approvedByProducer && !t.receivedByUnit);
-  const producerReq = req.filter((t: any) => t.fromProducer);
+  const producerReq = req.filter((t: any) => t.fromProducer && !t.acceptedByTransporter && !(typeof t.status === 'string' && t.status.startsWith('Απορρίφθηκε')));
   const carrierReq = req.filter((t: any) => !t.fromProducer);
   const open = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
   const delivery = A(transports).filter((t: any) => !!t.deliveredToUnit && !t.receivedByUnit);
@@ -3801,11 +5002,10 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
   return (
     <>
     <div className="flex flex-col h-full bg-gray-50 relative">
-      {/* Mobile header */}
-      <div className="mobile-header safe-top px-4 py-3">
-        <div className="relative flex items-center">
-          <div className="absolute left-1/2 -translate-x-1/2 text-base font-semibold tracking-wide">IWM</div>
-          <div className="ml-auto relative">
+      {/* Mobile header: menu left, tab title centered, bell on right */}
+      <div className="mobile-header safe-top px-4">
+        <div className="h-14 flex items-center justify-between">
+          <div className="relative">
             <button
               aria-label="Μενού"
               className="p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors"
@@ -3814,7 +5014,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
               <Menu className="w-6 h-6" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow z-50 py-1">
+              <div className="absolute left-0 mt-2 w-48 bg-white border rounded shadow z-50 py-1">
                 <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => setMenuOpen(false)}>Προφίλ</button>
                 <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => setMenuOpen(false)}>Ρυθμίσεις</button>
                 <div className="my-1 border-t" />
@@ -3825,6 +5025,19 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
               </div>
             )}
           </div>
+          <div className="font-semibold text-center">{title}</div>
+          <button
+            aria-label="Ειδοποιήσεις"
+            className="p-2 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors relative"
+            onClick={() => setTab('notifications')}
+          >
+            <Bell className="w-6 h-6" />
+            {A(notifications).filter((n: any) => n.target?.page === 'transporter' && !n.read).length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full min-w-[16px] h-4 leading-4 px-1 text-center">
+                {A(notifications).filter((n: any) => n.target?.page === 'transporter' && !n.read).length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
       {menuOpen && (
@@ -3835,8 +5048,12 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
       {showToast && (
         <div className="absolute top-12 right-4 z-50 bg-black text-white text-sm px-3 py-2 rounded shadow">Νέα μεταφορά καταχωρήθηκε</div>
       )}
+
       {showDeliveryCompleteToast && (
         <div className="absolute top-12 right-4 z-50 bg-green-600 text-white text-sm px-3 py-2 rounded shadow">Η μεταφορά ολοκληρώθηκε με επιτυχία</div>
+      )}
+      {showReqActionToast && (
+        <div className="absolute top-12 right-4 z-50 bg-black text-white text-sm px-3 py-2 rounded shadow">Επιτυχημένη ενέργεια</div>
       )}
 
       <div className="flex-1 overflow-auto">
@@ -4043,14 +5260,14 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
           <MobileRequests
             producerReq={producerReq}
             carrierReq={carrierReq}
-            onAccept={(t: any) => onAcceptRequest && onAcceptRequest(t)}
+            onAccept={(t: any) => { onAcceptRequest && onAcceptRequest(t); setShowReqActionToast(true); setTimeout(() => setShowReqActionToast(false), 1500); }}
+            onReject={(t: any) => { onRejectRequest && onRejectRequest(t); setShowReqActionToast(true); setTimeout(() => setShowReqActionToast(false), 1500); }}
             onPreviewPdf={(t: any) => setPdfPreview(pdfTransferDataUrl(t))}
           />
         )}
 
         {tab === 'projects' && !show && (
           <div className="p-4 space-y-3">
-            <h2 className="font-bold text-lg mb-2">Έργα</h2>
             <div className="inline-flex bg-gray-100 p-1 rounded-full mb-3">
               <button onClick={() => setProjTab('all')} className={`px-3 py-1.5 rounded-full text-sm ${projTab === 'all' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Όλα</button>
               <button onClick={() => setProjTab('iwm')} className={`px-3 py-1.5 rounded-full text-sm ${projTab === 'iwm' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα IWM</button>
@@ -4117,7 +5334,6 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
 
         {tab === 'notifications' && !show && (
           <div className="p-4 space-y-3">
-            <h2 className="font-bold text-lg mb-2">Ειδοποιήσεις</h2>
             {A(notifications).filter((n: any) => n.target?.page === 'transporter').length === 0 ? (
               <div className="text-center text-gray-400 py-6">Καμία ειδοποίηση</div>
             ) : (
@@ -4181,7 +5397,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
         </div>
         {/* Floating actions */}
         <div className="absolute right-4 -top-10 md:-top-20 text-center">
-          {(tab !== 'projects' && tab !== 'transfers') ? (
+          {(tab !== 'projects' && tab !== 'transfers' && tab !== 'requests') ? (
             <button
               onClick={() => setShow((v:any)=>!v)}
               aria-label="Νέα Μεταφορά"
@@ -4280,12 +5496,12 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
             if (!deliverySignModal.transporterSignature) return alert('Απαιτείται υπογραφή οδηγού');
             // mark driver signature and await unit signature
             onUpdateTransport && onUpdateTransport(deliverySignModal.row.id, { transporterSignature: deliverySignModal.transporterSignature, status: 'Waiting for unit signature' });
-            addNotif && addNotif('Driver signed', 'Driver signed — please sign', { page: 'unit', tab: 'transfers' });
-            addNotif && addNotif('Signature saved', 'Your signature was saved', { page: 'transporter', tab: 'unit' });
+            addNotif && addNotif('Υπογραφή Οδηγού', 'Ο οδηγός υπέγραψε — παρακαλούμε υπογράψτε', { page: 'unit', tab: 'transfers' });
+            addNotif && addNotif('Η υπογραφή αποθηκεύτηκε', 'Η υπογραφή σας αποθηκεύτηκε', { page: 'transporter', tab: 'unit' });
             // ensure Transfers page in menu is updated (do not show completion toast here)
             setTab('transfers');
             setDeliverySignModal({ open: false, row: null, transporterSignature: '' });
-          }}>Complete</button>
+          }}>Ολοκλήρωση</button>
         </div>
       </div>
     )}
@@ -4336,13 +5552,7 @@ function MobileTransfers({ pending = [], open, delivery = [], done, onPreviewPdf
 
   return (
     <div className="p-3 space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-lg font-semibold">Μεταφορές</div>
-          <div className="text-xs text-gray-500">Τα τελευταία αιτήματα και παραδόσεις</div>
-        </div>
-      </div>
+      {/* Header removed (duplicate with centered app header) */}
 
       {/* Summary pills */}
       <div className="flex gap-2">
@@ -4474,8 +5684,8 @@ function MobileTransfers({ pending = [], open, delivery = [], done, onPreviewPdf
                     <div className="rounded-lg bg-white shadow-sm p-3 text-center">
                       {/* Primary action first: show Sign or Waiting at the top */}
                       {t.status === 'Waiting for unit signature' ? (
-                        <div className="mb-3 text-sm text-gray-600 flex items-center justify-center">
-                          <span className="mr-1">⏳</span> Αναμονή υπογραφής μονάδας
+                        <div className="mb-3 text-sm text-orange-600 flex items-center justify-center">
+                          <span className="mr-1 inline-block animate-spin">⏳</span> Αναμονή υπογραφής μονάδας
                         </div>
                       ) : (
                         <button onClick={() => onOpenDeliverySign && onOpenDeliverySign(t)} className="mb-3 w-full px-3 py-2 rounded bg-green-600 text-white text-sm">Υπογραφή</button>
@@ -4570,7 +5780,13 @@ function MobileTransfersProducer({ open = [], done = [], onPreviewPdf }: any) {
         <>
           <div className="text-sm text-gray-500">Ενεργές μεταφορές</div>
           {filteredOpen.length === 0 ? (
-            <div className="text-center text-gray-400 text-sm">Καμία ενεργή μεταφορά</div>
+            <div className="text-center p-10">
+              <div className="mx-auto w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mb-3">
+                <Truck className="w-7 h-7 text-blue-600" />
+              </div>
+              <div className="font-medium">Καμία ενεργή μεταφορά</div>
+              <div className="text-xs text-gray-500 mt-1">Όταν ξεκινήσει μια μεταφορά θα εμφανιστεί εδώ.</div>
+            </div>
           ) : (
             filteredOpen.map((t: any) => (
               <div key={t.id} className="mobile-card p-2 text-sm">
@@ -4622,7 +5838,13 @@ function MobileTransfersProducer({ open = [], done = [], onPreviewPdf }: any) {
         <>
           <div className="text-sm text-gray-500">Ολοκληρωμένες μεταφορές</div>
           {filteredDone.length === 0 ? (
-            <div className="text-center text-gray-400 text-sm">—</div>
+            <div className="text-center p-10">
+              <div className="mx-auto w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mb-3">
+                <CheckCircle2 className="w-7 h-7 text-green-600" />
+              </div>
+              <div className="font-medium">Δεν υπάρχουν ολοκληρωμένες μεταφορές</div>
+              <div className="text-xs text-gray-500 mt-1">Όταν ολοκληρωθούν, θα τις βρείτε εδώ.</div>
+            </div>
           ) : (
             filteredDone.map((t: any) => (
               <div key={t.id} className="border rounded-lg p-3 shadow-sm text-sm bg-gray-50">
@@ -4638,7 +5860,7 @@ function MobileTransfersProducer({ open = [], done = [], onPreviewPdf }: any) {
   );
 }
 
-function MobileRequests({ producerReq = [], carrierReq = [], onAccept, onPreviewPdf }: any) {
+function MobileRequests({ producerReq = [], carrierReq = [], onAccept, onReject, onPreviewPdf }: any) {
   const prod = A(producerReq);
   const carr = A(carrierReq);
   const total = prod.length + carr.length;
@@ -4656,25 +5878,49 @@ function MobileRequests({ producerReq = [], carrierReq = [], onAccept, onPreview
         <div className="text-center text-gray-400 text-sm">Δεν υπάρχουν αιτήματα</div>
       )}
 
-      {/* Producer requests (primary) */}
+      {/* Producer requests (primary) with type label and icon */}
       {prod.length > 0 && (
-        <div>
-          {prod.map((t: any) => (
-            <div key={t.id} className="mobile-card p-3 mb-2 text-sm">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold truncate">{t.producer} — {t.project}</div>
-                <div className="text-xs text-gray-500">{fmt(t.date)}</div>
-              </div>
-              <div className="text-xs text-gray-600 truncate">{t.address}</div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-xs text-blue-700">{t.status}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => onPreviewPdf ? onPreviewPdf(t) : pdfTransfer(t)} className="p-1 rounded bg-orange-50 text-orange-700" aria-label="Open PDF"><ChevronRight className="w-4 h-4" /></button>
-                  <button onClick={() => onAccept && onAccept(t)} className="px-2 py-1 rounded bg-green-600 text-white text-xs">Αποδοχή</button>
+        <div className="space-y-2">
+          {prod.map((t: any) => {
+            const type = t.requestType;
+            const typeLabel = type === 'new-bin' ? 'Νέος κάδος' : type === 'move-bin' ? 'Μεταφορά κάδου' : type === 'change-bin' ? 'Αλλαγή κάδου' : 'Αίτημα Παραγωγού';
+            const tone = type === 'new-bin' ? 'bg-emerald-50' : type === 'move-bin' ? 'bg-blue-50' : type === 'change-bin' ? 'bg-yellow-50' : 'bg-gray-50';
+            return (
+              <div key={t.id} className={`mobile-card p-3 text-sm ${tone}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {/* type icon */}
+                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border">
+                      {type === 'new-bin' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v8m4-4H8M4 7h16M9 7v10a2 2 0 002 2h2a2 2 0 002-2V7"/></svg>
+                      )}
+                      {type === 'move-bin' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5-5 5M6 17l-5-5 5-5"/></svg>
+                      )}
+                      {type === 'change-bin' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M4 10l4-4m12 8l-4 4"/></svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold truncate">{typeLabel} — {t.project}</div>
+                      <div className="text-xs text-gray-600 truncate">{t.address}</div>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xs text-gray-500">{fmt(t.date)}</div>
+                    <div className="text-xs text-gray-500">{t.time || '-'}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-blue-700">{t.status}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onReject && onReject(t)} className="px-2 py-1 rounded bg-red-600 text-white text-xs">Απόρριψη</button>
+                    <button onClick={() => onAccept && onAccept(t)} className="px-2 py-1 rounded bg-green-600 text-white text-xs">Αποδοχή</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -4786,7 +6032,7 @@ export default function App() {
       status: 'Waiting for transporter signature',
       isNew: true,
     } : t)));
-    addNotif('Delivery to Unit', 'Waiting for transporter signature', { page: 'transporter', tab: 'delivery' });
+  addNotif('Παράδοση στη Μονάδα', 'Αναμονή για υπογραφή μεταφορέα', { page: 'transporter', tab: 'delivery' });
   };
 
   // finalize flow now supports two-step signing: driver then unit
@@ -4809,16 +6055,16 @@ export default function App() {
       };
     }));
     if (completed) {
-      addNotif('Transfer completed', 'The transfer has been completed', { page: 'producer', tab: 'transfers' });
-      addNotif('Unit signed', 'The unit signed and completed the transfer', { page: 'transporter', tab: 'unit' });
+      addNotif('Ολοκλήρωση Μεταφοράς', 'Η μεταφορά ολοκληρώθηκε', { page: 'producer', tab: 'transfers' });
+      addNotif('Υπογραφή Μονάδας', 'Η μονάδα υπέγραψε και ολοκλήρωσε τη μεταφορά', { page: 'transporter', tab: 'unit' });
     } else if (transporterSignature) {
-      addNotif('Driver signed', 'Driver signed — waiting for unit signature', { page: 'unit', tab: 'transfers' });
-      addNotif('Signature saved', 'Your signature was saved', { page: 'transporter', tab: 'unit' });
+      addNotif('Υπογραφή Οδηγού', 'Ο οδηγός υπέγραψε — αναμονή για υπογραφή μονάδας', { page: 'unit', tab: 'transfers' });
+      addNotif('Η υπογραφή αποθηκεύτηκε', 'Η υπογραφή σας αποθηκεύτηκε', { page: 'transporter', tab: 'unit' });
     }
   };
 
-  // producer → create request (supports empty-bin, full-pickup, change-bin)
-  const requestTransfer = (project: any, requestType?: 'empty-bin' | 'full-pickup' | 'change-bin') => {
+  // producer → create request (supports multiple request types)
+  const requestTransfer = (project: any, requestType?: 'empty-bin' | 'full-pickup' | 'change-bin' | 'new-bin' | 'move-bin') => {
     // Derive a human-friendly status label including the request type when provided
     const status = requestType === 'empty-bin'
       ? 'Αίτηση Παραγωγού — Κενός Κάδος'
@@ -4826,7 +6072,11 @@ export default function App() {
         ? 'Αίτηση Παραγωγού — Παραλαβή Γεμάτου'
         : requestType === 'change-bin'
           ? 'Αίτηση Παραγωγού — Αλλαγή Κάδου'
-          : 'Αίτηση Παραγωγού';
+          : requestType === 'new-bin'
+            ? 'Αίτηση Παραγωγού — Νέος Κάδος'
+            : requestType === 'move-bin'
+              ? 'Αίτηση Παραγωγού — Μεταφορά Κάδου'
+              : 'Αίτηση Παραγωγού';
     const req = {
       id: gid(),
       producer: project.producer,
@@ -4849,47 +6099,102 @@ export default function App() {
   };
 
   // producer → cancel request (remove pending requests created by producer)
-  const cancelRequest = (projectId: string, requestType?: 'empty-bin' | 'full-pickup' | 'change-bin') => {
+  const cancelRequest = (projectId: string, requestType?: 'empty-bin' | 'full-pickup' | 'change-bin' | 'new-bin' | 'move-bin') => {
     setTransports((prev: any[]) => prev.filter((t: any) => !(t.projectId === projectId && t.fromProducer && !t.approvedByProducer && t.requestType === requestType)));
     addNotif && addNotif('Ακύρωση Αίτησης', 'Η αίτηση ακυρώθηκε από Παραγωγό', { page: 'transporter', tab: 'aitimata' });
   };
 
   // transporter accepts request (web & mobile share this)
-  const acceptRequest = (t: any, details?: { vehicle?: string; date?: string; time?: string }) => {
+  const acceptRequest = (t: any, details?: { vehicle?: string; date?: string; time?: string; producerSignature?: string; transporterSignature?: string }) => {
     const { vehicle, date, time } = details || {};
     const v = vehicle || plates()[0];
-  const nowTime = new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false });
-  // if signatures provided (from mobile flow), persist them on the transport record
-  const producerSignature = (details as any)?.producerSignature;
-  const transporterSignature = (details as any)?.transporterSignature;
-    setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? {
-    ...x,
-    vehicle: v,
-    date: date || x.date,
-    time: time || x.time,
-    // If this is a producer-created change-bin request, finalize it immediately (no delivery flow)
-    approvedByProducer: true,
-    receivedByUnit: (t.fromProducer && t.requestType === 'change-bin') ? true : x.receivedByUnit,
-    // set unitDate/unitTime so completed tables that display the receipt date show a value immediately
-    unitDate: (t.fromProducer && t.requestType === 'change-bin') ? today() : x.unitDate,
-    unitTime: (t.fromProducer && t.requestType === 'change-bin') ? nowTime : x.unitTime,
-    status: (t.fromProducer && t.requestType === 'change-bin') ? 'Ολοκληρωμένο (Αλλαγή Κάδου)' : 'Σε πορεία',
-    isNew: true,
-    producerSignature: producerSignature || x.producerSignature,
-    transporterSignature: transporterSignature || x.transporterSignature,
-  } : x)));
-    // If this was a producer-created change-bin request, notify the producer that the transporter accepted the request.
-    if (t.fromProducer && t.requestType === 'change-bin') {
-      addNotif && addNotif('Αποδοχή Αιτήματος Αλλαγής Κάδου', `Ο μεταφορέας αποδέχτηκε το αίτημα αλλαγής κάδου για το έργο "${t.project}"`, { page: 'producer', tab: 'requests' });
-    } else {
-      // default: notify unit about the approved transfer
-      addNotif && addNotif('Η αίτηση εγκρίθηκε', `${t.producer} / ${t.project}`, { page: 'unit', tab: 'transfers' });
+    const nowTime = new Date().toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    // if signatures provided (from mobile flow), persist them on the transport record
+    const producerSignature = (details as any)?.producerSignature;
+    const transporterSignature = (details as any)?.transporterSignature;
+
+    // Producer bin requests are an independent flow (new-bin, move-bin, change-bin).
+    // Do NOT convert them to transfers. Keep them as requests, mark accepted, and notify the producer.
+    if (t.fromProducer && ['change-bin','new-bin','move-bin'].includes(t.requestType)) {
+      setTransports((prev: any[]) => prev.map((x: any) => x.id === t.id ? { ...x, acceptedByTransporter: true, acceptedByTransporterAt: today(), isNew: true } : x));
+      const title = t.requestType === 'new-bin'
+        ? 'Αποδοχή Αιτήματος Νέου Κάδου'
+        : t.requestType === 'move-bin'
+          ? 'Αποδοχή Αιτήματος Μεταφοράς Κάδου'
+          : 'Αποδοχή Αιτήματος Αλλαγής Κάδου';
+      addNotif && addNotif(title, `${t.producer} / ${t.project}`, { page: 'producer', tab: 'requests' });
+      return;
     }
+
+    // Default path: approve transfer request and continue normal flow
+    setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? {
+      ...x,
+      vehicle: v,
+      date: date || x.date,
+      time: time || x.time,
+      approvedByProducer: true,
+      receivedByUnit: x.receivedByUnit,
+      unitDate: x.unitDate,
+      unitTime: x.unitTime,
+      status: 'Σε πορεία',
+      isNew: true,
+      producerSignature: producerSignature || x.producerSignature,
+      transporterSignature: transporterSignature || x.transporterSignature,
+    } : x)));
+    // notify unit about the approved transfer
+    addNotif && addNotif('Η αίτηση εγκρίθηκε', `${t.producer} / ${t.project}`, { page: 'unit', tab: 'transfers' });
+  };
+
+  // transporter rejects request
+  const rejectRequest = (t: any) => {
+    // For Producer bin requests (new/move/change)
+    if (t.fromProducer && ['new-bin','move-bin','change-bin'].includes(t.requestType)) {
+      // If already accepted, treat as cancel acceptance (revert)
+      if (t.acceptedByTransporter) {
+        setTransports((prev: any[]) => prev.map((x: any) => x.id === t.id ? { ...x, acceptedByTransporter: false, acceptedByTransporterAt: undefined, isNew: true } : x));
+        const title = t.requestType === 'new-bin' ? 'Ακύρωση Αποδοχής Αιτήματος Νέου Κάδου' : t.requestType === 'move-bin' ? 'Ακύρωση Αποδοχής Αιτήματος Μεταφοράς Κάδου' : 'Ακύρωση Αποδοχής Αιτήματος Αλλαγής Κάδου';
+        addNotif && addNotif(title, `${t.producer} / ${t.project}`, { page: 'producer', tab: 'requests' });
+        return;
+      }
+      // If not accepted yet: preserve previous behavior
+      if (t.requestType === 'change-bin') {
+        setTransports((prev: any[]) => prev.filter((x: any) => x.id !== t.id));
+        addNotif && addNotif('Απόρριψη Αίτησης Αλλαγής Κάδου', `Ο μεταφορέας απέρριψε το αίτημα αλλαγής κάδου για το έργο "${t.project}"`, { page: 'producer', tab: 'requests' });
+        return;
+      }
+      // For new-bin and move-bin before acceptance, mark as rejected and notify
+      setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? { ...x, status: 'Απορρίφθηκε από Μεταφορέα', isNew: true } : x)));
+      addNotif && addNotif('Απόρριψη Αίτησης', `${t.producer} / ${t.project}`, { page: 'producer', tab: 'requests' });
+      return;
+    }
+    // For other requests: mark as rejected by transporter and notify producer
+    setTransports((prev: any[]) => prev.map((x: any) => (x.id === t.id ? { ...x, status: 'Απορρίφθηκε από Μεταφορέα', isNew: true } : x)));
+    addNotif && addNotif('Απόρριψη Αίτησης', `${t.producer} / ${t.project}`, { page: 'producer', tab: 'aitimata' });
   };
 
   // update transport record (used to persist signatures or minor updates without approving)
   const updateTransport = (id: string, updates: any) => {
     setTransports((prev: any[]) => prev.map(x => x.id === id ? { ...x, ...updates } : x));
+  };
+
+  // Producer removes an accepted notification-only request (e.g., change-bin) from their list
+  const dismissRequest = (id: string) => {
+    setTransports((prev: any[]) => prev.filter((t: any) => t.id !== id));
+  };
+
+  // clear notification flags (isNew) globally or with a predicate
+  const clearTransNew = (predicate?: (t: any) => boolean) => {
+    setTransports((prev: any[]) => prev.map((t: any) => {
+      const match = predicate ? !!predicate(t) : true;
+      return (match && t.isNew) ? { ...t, isNew: false } : t;
+    }));
+  };
+  const clearTransNewWhere = (predicate: (t: any) => boolean) => clearTransNew(predicate);
+  const clearProjectsNew = (predicate?: (p: any) => boolean) => {
+    setProjects((prev: any[]) => prev.map((p: any) => {
+      const match = predicate ? !!predicate(p) : true;
+      return (match && p.isNew) ? { ...p, isNew: false } : p;
+    }));
   };
 
   // counts
@@ -4914,7 +6219,7 @@ export default function App() {
           <Btn className={page === 'transporter' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setPage('transporter')}>Μεταφορέας {transpReq > 0 && <span className="ml-1 bg-red-600 text-white rounded-full px-2 text-xs">{transpReq}</span>}</Btn>
           <Btn className={page === 'unit' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setPage('unit')}>Μονάδα {unitPend > 0 && <span className="ml-1 bg-red-600 text-white rounded-full px-2 text-xs">{unitPend}</span>}</Btn>
         </div>
-  <BellBtn items={A(notifications).filter((n: any) => n.target?.page === page)} onJump={jumpByNotif} />
+        {/* Top-level bell removed to avoid duplicate bells; in-page bells remain */}
       </div>
 
       {page === 'producer' && (
@@ -4923,14 +6228,14 @@ export default function App() {
             <Btn className={producerMode === 'web' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setProducerMode('web')}>🌐 Web</Btn>
             <Btn className={producerMode === 'mobile' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setProducerMode('mobile')}>📱 Mobile</Btn>
           </div>
-          {producerMode === 'web' ? (
+              {producerMode === 'web' ? (
             selectedProject ? (
               <ProjectDetails project={selectedProject} transports={transports} onBack={() => setSelectedProject(null)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} />
             ) : (
-              <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} />
+                  <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
             )
           ) : (
-              <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onOpenProject={(p: any) => setSelectedProject(p)} />
+              <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} onCancelRequest={cancelRequest} onDismissRequest={dismissRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onOpenProject={(p: any) => setSelectedProject(p)} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
           )}
         </div>
       )}
@@ -4942,9 +6247,9 @@ export default function App() {
             <Btn className={transporterMode === 'mobile' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setTransporterMode('mobile')}>📱 Mobile</Btn>
           </div>
           {transporterMode === 'web' ? (
-            <Transporter projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} addNotif={addNotif} deepLink={deepLink} onAddProject={addProject} />
+            <Transporter projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} onRejectRequest={rejectRequest} addNotif={addNotif} deepLink={deepLink} onAddProject={addProject} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
           ) : (
-            <EcoMobileFrame projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} addNotif={addNotif} deepLink={deepLink} onFinalizeDelivery={finalizeUnitDelivery} onUpdateTransport={updateTransport} onAddProject={addProject} />
+            <EcoMobileFrame projects={projects} transports={transports} onAddTransport={addTransport} notifications={notifications} onJump={jumpByNotif} onAcceptRequest={acceptRequest} onRejectRequest={rejectRequest} addNotif={addNotif} deepLink={deepLink} onFinalizeDelivery={finalizeUnitDelivery} onUpdateTransport={updateTransport} onAddProject={addProject} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
           )}
         </div>
       )}
@@ -4956,7 +6261,7 @@ export default function App() {
                 <Btn className={unitMode === 'tablet' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setUnitMode('tablet')}>📱 Tablet</Btn>
               </div>
               {unitMode === 'web' ? (
-                <Unit projects={projects} transports={transports} onAcceptAgreement={acceptAgreement} onRejectAgreement={rejectAgreement} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} notifications={notifications} onJump={jumpByNotif} onOpenProject={(p: any) => { setSelectedProject(p); setPage('projectView'); }} deepLink={deepLink} />
+                <Unit projects={projects} transports={transports} onAcceptAgreement={acceptAgreement} onRejectAgreement={rejectAgreement} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} notifications={notifications} onJump={jumpByNotif} onOpenProject={(p: any) => { setSelectedProject(p); setPage('projectView'); }} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} onClearTransNewWhere={clearTransNewWhere} />
               ) : (
                 <UnitTabletFrame projects={projects} transports={transports} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} onAddTransport={addTransport} addNotif={addNotif} />
               )}
