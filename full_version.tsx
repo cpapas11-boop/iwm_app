@@ -1,3 +1,115 @@
+// Νέο component για το tab 'Έργα' του μεταφορέα (web)
+function TransporterProjectsTab({ tProjects }: { tProjects: any[] }) {
+  const all = A(tProjects || []);
+  const iwms = all.filter((p: any) => !p.external);
+  const others = all.filter((p: any) => !!p.external);
+  const [subtab, setSubtab] = React.useState<'all' | 'iwm' | 'external'>('all');
+  const [externalProjects, setExternalProjects] = React.useState<any[]>(others);
+
+  React.useEffect(() => { if (subtab === 'external') setExternalProjects(others); }, [subtab, all.length]);
+
+  let list = all;
+  if (subtab === 'iwm') list = iwms;
+  if (subtab === 'external') list = externalProjects;
+
+  const handleCompleteExternal = (p: any) => {
+    try {
+      const raw = localStorage.getItem('iwm_transporter_external_projects');
+      const arr = raw ? JSON.parse(raw) : [];
+      const next = Array.isArray(arr) ? arr.filter((x: any) => !(x.producer === p.producer && x.projectName === p.projectName)) : arr;
+      localStorage.setItem('iwm_transporter_external_projects', JSON.stringify(next));
+      const rawP = localStorage.getItem('iwm_unit_offline_projects');
+      const objP = rawP ? JSON.parse(rawP) : {};
+      if (objP && typeof objP === 'object' && objP[p.producer]) {
+        objP[p.producer] = (objP[p.producer] || []).filter((name: string) => name !== p.projectName);
+        if (objP[p.producer].length === 0) delete objP[p.producer];
+        localStorage.setItem('iwm_unit_offline_projects', JSON.stringify(objP));
+      }
+      setExternalProjects((prev) => prev.filter((x: any) => !(x.producer === p.producer && x.projectName === p.projectName)));
+    } catch {}
+  };
+
+  return (
+    <div className="bg-white border rounded p-4">
+      <div className="mb-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-lg font-semibold">Έργα</div>
+            <div className="text-sm text-gray-500">Διαχείριση έργων — μεταφορέας</div>
+          </div>
+          <div className="hidden sm:flex items-center gap-3">
+            <button
+              onClick={() => {/* TODO: open modal */}}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-br from-blue-600 to-blue-500 text-white text-sm shadow-md hover:from-blue-700 hover:to-blue-600 transition"
+              title="Προσθήκη νέου έργου"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="font-medium">Προσθήκη Έργου</span>
+            </button>
+          </div>
+        </div>
+
+        {/* subtabs: placed above projects, left-aligned */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="inline-flex bg-gray-100 p-1 rounded-full">
+            <button onClick={() => setSubtab('all')} className={`px-3 py-1.5 rounded-full text-sm ${subtab === 'all' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Όλα</button>
+            <button onClick={() => setSubtab('iwm')} className={`px-3 py-1.5 rounded-full text-sm ${subtab === 'iwm' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα πλατφόρμας</button>
+            <button onClick={() => setSubtab('external')} className={`px-3 py-1.5 rounded-full text-sm ${subtab === 'external' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα εκτός πλατφόρμας</button>
+          </div>
+
+          {/* mobile add button near subtabs for small screens */}
+          <div className="sm:hidden ml-auto">
+            <button
+              onClick={() => {/* TODO: open modal */}}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm shadow-sm hover:bg-blue-700 transition"
+              title="Προσθήκη"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-3 text-sm text-gray-700">Σύνολο: <span className="font-medium">{list.length}</span></div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {list.length === 0 ? (
+          <div className="col-span-full p-6 text-center text-gray-500">—</div>
+        ) : list.map((p: any, i: number) => (
+          <div key={p.id || i} className="border rounded p-3 bg-white shadow-sm">
+            <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className={`h-3 w-3 rounded-full ${p.external ? 'bg-gray-400' : 'bg-green-500'}`} />
+                    <div className="font-semibold text-sm">{p.projectName}{p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : ''}</div>
+                    <div className={`ml-2 text-xs font-medium ${p.external ? 'text-gray-500' : 'text-green-600'}`}>
+                      {p.external ? 'offline' : 'online'}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">{p.producer}</div>
+                </div>
+                <div className="text-xs text-gray-500">{p.unit || '-'}</div>
+              </div>
+            <div className="mt-2 text-sm text-gray-700">{p.address || '-'}</div>
+            <div className="mt-3 flex items-center justify-between text-sm text-gray-600">
+              <div>{p.managerName || '-'}</div>
+              <div>{p.managerPhone || '-'}</div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              {p.external ? (
+                <button className="px-3 py-1.5 rounded bg-green-600 text-white text-sm" onClick={() => handleCompleteExternal(p)}>Ολοκλήρωση</button>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 import React, { useMemo, useState } from 'react';
 // Lightweight switches to move between prior code states without git
 const CONFIG = {
@@ -9,7 +121,104 @@ const CONFIG = {
   SHOW_DEV_BANNER: false,
 };
 import jsPDF from 'jspdf';
-import { Bell, Inbox, Truck, Factory, FileText, CheckCircle2, Clock, Menu, Filter, Package, ArrowUpCircle, ArrowDownCircle, Trash2, ChevronRight } from 'lucide-react';
+// --- Fallback dummy data for missing constants/helpers ---
+// Expanded EKA list for category 17 (Construction & Demolition wastes — non-hazardous)
+// This provides common 17.* codes with short Greek descriptions used in project waste lines.
+const EKA = [
+  { code: '17 01 01', description: 'ΣΚΥΡΟΔΕΜΑ' },
+  { code: '17 01 02', description: 'ΤΟΥΒΛΑ' },
+  { code: '17 01 03', description: 'ΠΛΑΚΑΚΙΑ ΚΑΙ ΚΕΡΑΜΙΚΑ' },
+  { code: '17 01 07', description: 'ΜΕΙΓΜΑ ΣΚΥΡΟΔΕΜΑΤΟΣ, ΤΟΥΒΛΩΝ, ΠΛΑΚΑΚΙΩΝ ΚΑΙ ΚΕΡΑΜΙΚΩΝ ΕΚΤΟΣ ΕΚΕΙΝΩΝ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΟΝΤΑΙ ΣΤΟ ΣΗΜΕΙΟ 170706 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 02 01', description: 'ΞΥΛΟ' },
+  { code: '17 02 02', description: 'ΓΥΑΛΙ' },
+  { code: '17 02 03', description: 'ΠΛΑΣΤΙΚΟ' },
+  { code: '17 03 02', description: 'ΜΕΙΓΜΑΤΑ ΟΡΥΚΤΗΣ ΑΣΦΑΛΤΟΥ ΕΚΤΟΣ ΕΚΕΙΝΩΝ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΟΝΤΑΙ ΣΤΟ ΣΗΜΕΙΟ 170301 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 04 01', description: 'ΧΑΛΚΟΣ, ΜΠΡΟΥΝΤΖΟΣ, ΟΡΕΙΧΑΛΚΟΣ' },
+  { code: '17 04 02', description: 'ΑΛΟΥΜΙΝΙΟ' },
+  { code: '17 04 03', description: 'ΜΟΛΥΒΔΟΣ' },
+  { code: '17 04 04', description: 'ΨΕΥΔΑΡΓΥΡΟΣ' },
+  { code: '17 04 05', description: 'ΣΙΔΗΡΟΣ ΚΑΙ ΧΑΛΥΒΑΣ' },
+  { code: '17 04 06', description: 'ΚΑΣΣΙΤΕΡΟΣ' },
+  { code: '17 04 07', description: 'ΑΝΑΜΕΙΚΤΑ ΜΕΤΑΛΛΑ' },
+  { code: '17 05 04', description: 'ΧΩΜΑΤΑ ΚΑΙ ΠΕΤΡΕΣ ΑΛΛΑ ΑΠΟ ΤΑ ΑΝΑΦΕΡΟΜΕΝΑ ΣΤΟ ΣΗΜΕΙΟ 170503 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 05 06', description: 'ΜΠΑΖΑ ΕΣΚΑΦΩΝ ΑΛΛΑ ΑΠΟ ΤΑ ΑΝΑΦΕΡΟΜΕΝΑ ΣΤΟ ΣΗΜΕΙΟ 170505 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 05 08', description: 'ΕΡΜΑ ΣΙΔΗΡΟΤΡΟΧΙΩΝ ΕΚΤΟΣ ΕΚΕΙΝΟΥ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΕΤΑΙ ΣΤΟ ΣΗΜΕΙΟ 170507 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 06 04', description: 'ΜΟΝΩΤΙΚΑ ΥΛΙΚΑ ΕΚΤΟΣ ΕΚΕΙΝΩΝ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΟΝΤΑΙ ΣΤΑ ΣΗΜΕΙΑ 170601 ΚΑΙ 170603 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 08 02', description: 'ΥΛΙΚΑ ΔΟΜΙΚΩΝ ΚΑΤΑΣΚΕΥΩΝ ΜΕ ΒΑΣΗ ΤΟ ΓΥΨΟ ΕΚΤΟΣ ΕΚΕΙΝΩΝ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΟΝΤΑΙ ΣΤΟ ΣΗΜΕΙΟ 170801 ΤΟΥ ΚΑΤΑΛΟΓΟΥ ΑΠΟΒΛΗΤΩΝ' },
+  { code: '17 09 04', description: 'ΜΕΙΓΜΑΤΑ ΑΠΟΒΛΗΤΩΝ ΔΟΜΙΚΩΝ ΚΑΤΑΣΚΕΥΩΝ ΚΑΙ ΚΑΤΕΔΑΦΙΣΕΩΝ (ΕΚΤΟΣ ΑΥΤΩΝ ΠΟΥ ΠΕΡΙΛΑΜΒΑΝΟΝΤΑΙ ΣΤΑ ΣΗΜΕΙΑ 170901-170903)' },
+];
+// EKA codes to hide from producer project tables (normalized without spaces)
+const EXCLUDED_EKA = new Set(['170401','170402','170403','170404','170405','170406','170407','170508']);
+const readStoredDebtors = () => {
+  try {
+    const raw = localStorage.getItem('iwm_unit_offline_debtors');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+};
+const UNITS = ['RRC', 'Latouros'];
+const TRANSPORTERS = ['Euroskip', 'Skip Hire'];
+const uniqueProducers = (projects: any[]) => Array.from(new Set(projects.map((p: any) => p.producer).filter(Boolean)));
+const projectsByProducer = (projects: any[], producer?: string) => producer ? projects.filter((p: any) => p.producer === producer) : projects;
+const downloadCSV = (...args: any[]) => { alert('Λειτουργία εξαγωγής CSV προσωρινά απενεργοποιημένη'); };
+const applyProjectFilter = (projects: any[], filter: any, producer?: string) => projects;
+const plates = () => [];
+// Simple signature pad using native canvas. Returns dataURL via onChange.
+const SignaturePad = ({ value, onChange, ariaLabel, className = '' }: any) => {
+  const ref = React.useRef<HTMLCanvasElement | null>(null);
+  const drawing = React.useRef(false);
+
+  React.useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    if (value) {
+      const img = new Image(); img.src = value; img.onload = () => ctx.drawImage(img, 0, 0);
+    }
+  }, [value]);
+
+  const start = (e: any) => { drawing.current = true; draw(e); };
+  const end = () => { drawing.current = false; if (!ref.current) return; onChange(ref.current.toDataURL()); };
+  const draw = (e: any) => {
+    if (!drawing.current || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    const ctx = ref.current.getContext('2d');
+    if (!ctx) return;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 0.1, y + 0.1); ctx.stroke();
+  };
+
+  const clear = () => { if (!ref.current) return; const ctx = ref.current.getContext('2d'); if (!ctx) return; ctx.clearRect(0,0,ref.current.width, ref.current.height); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,ref.current.width, ref.current.height); onChange(''); };
+
+  return (
+    <div>
+      <canvas
+        ref={ref}
+        width={500}
+        height={160}
+        aria-label={ariaLabel || 'signature-pad'}
+        className={`border w-full bg-white touch-none ${className}`}
+        onMouseDown={start}
+        onMouseMove={draw}
+        onMouseUp={end}
+        onTouchStart={start}
+        onTouchMove={draw}
+        onTouchEnd={end}
+      />
+      <div className="flex gap-2 mt-2">
+        <Btn className="bg-gray-100" onClick={clear}>Καθαρισμός</Btn>
+      </div>
+    </div>
+  );
+};
+import { Bell, Inbox, Truck, Factory, FileText, CheckCircle2, Clock, Menu, Filter, Package, ArrowUpCircle, ArrowDownCircle, Trash2, ChevronRight, DollarSign } from 'lucide-react';
 
 /******** helpers ********/
 const gid = () => Math.random().toString(36).slice(2, 9);
@@ -20,65 +229,6 @@ const yearYY = () => to2(new Date().getFullYear() % 100);
 const A = (x: any) => (Array.isArray(x) ? x : []);
 const sumWaste = (lines: any[] = []) => A(lines).reduce((s: number, l: any) => s + (parseFloat(l?.quantity || '0') || 0), 0);
 
-const EKA = [
-  { code: '17 01 01', description: 'Σκυρόδεμα' },
-  { code: '17 01 02', description: 'Τούβλα' },
-  { code: '17 01 03', description: 'Πλακάκια/Κεραμικά' },
-  { code: '17 01 05', description: 'Μείγματα' },
-  { code: '17 05 04', description: 'Χώματα/Πέτρες' },
-  { code: '17 09 04', description: 'Ανάμικτα ΑΕΚΚ' },
-];
-
-const UNITS = ['RRC', 'Latouros'];
-const TRANSPORTERS = ['Euroskip', 'Skip Hire'];
-const DEBTOR_OPTIONS = ['Εργολάβος Α','Εργολάβος Β','Εργολάβος Γ','Εταιρεία Skip 1','Εταιρεία Skip 2','Εταιρεία Skip 3'];
-
-const plates = () => {
-  const L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const s = () => L[Math.floor(Math.random() * L.length)];
-  const d = () => Math.floor(Math.random() * 10);
-  const r = () => `${s()}${s()}${s()}${d()}${d()}${d()}`;
-  return [r(), r(), r()];
-};
-
-// helpers: export CSV (simple Excel-friendly CSV)
-const toCSV = (rows: any[], columns: string[]) => {
-  const esc = (v: any) => {
-    if (v == null) return '';
-    const s = String(v);
-    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
-    return s;
-  };
-  const header = columns.join(',');
-  const body = rows.map(r => columns.map(c => esc(r[c])).join(',')).join('\n');
-  return header + '\n' + body;
-};
-
-const downloadCSV = (filename: string, rows: any[], columns: string[]) => {
-  const csv = toCSV(rows, columns);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-};
-
-const uniqueProducers = (projects: any[] = []) => [...new Set(A(projects).map((p: any) => p.producer))];
-const projectsByProducer = (projects: any[] = [], producer = '') => A(projects).filter((p: any) => !producer || p.producer === producer);
-
-// apply filters to projects (supports optional producer override)
-const applyProjectFilter = (projects: any[] = [], filter: any = {}, producerOverride?: string) => A(projects).filter((p: any) => {
-  const prod = producerOverride || filter.producer;
-  if (prod && p.producer !== prod) return false;
-  if (filter.project && p.id !== filter.project) return false;
-  if (filter.from && p.start && p.start < filter.from) return false;
-  if (filter.to && p.end && p.end > filter.to) return false;
-  return true;
-});
 
 // apply filters to transports (handles t.projectId vs t.project fallback)
 const applyTransportFilter = (transports: any[] = [], projects: any[] = [], filter: any = {}, producerOverride?: string) => A(transports).filter((t: any) => {
@@ -256,9 +406,9 @@ const TabBar = ({ tabs, active, onChange }: any) => {
           className={`px-3 py-2 -mb-px ${a === t.key ? 'border-b-4 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}
         >
           {t.label}
-          {t.count > 0 && (
-            <span className="ml-2 text-xs bg-red-600 text-white rounded-full px-2">{t.count}</span>
-          )}
+             {t.count > 0 && (
+               <span className={`ml-2 text-xs rounded-full px-2 ${t.count === 0 ? 'bg-gray-200 text-gray-700' : 'bg-red-600 text-white'}`}>{t.count}</span>
+             )}
         </button>
       ))}
     </div>
@@ -289,72 +439,18 @@ const Snackbar = ({ open, message, onClose }: any) => {
   if (!open) return null;
   return (
     <div role="status" aria-live="polite" className="fixed left-1/2 -translate-x-1/2 bottom-6 z-50 bg-gray-900 text-white px-4 py-2 rounded shadow">
-      <div className="flex items-center gap-3">
-        <div className="text-sm">{message}</div>
-        <button aria-label="Close" onClick={onClose} className="text-xs bg-white/10 px-2 py-1 rounded">Close</button>
-      </div>
+      {message}
+      {onClose && (
+        <button className="ml-2 text-xs underline" onClick={onClose}>Κλείσιμο</button>
+      )}
     </div>
   );
-};
+}
 
-// Simple signature pad using native canvas. Returns dataURL via onChange.
-const SignaturePad = ({ value, onChange, ariaLabel, className = '' }: any) => {
-  const ref = React.useRef<HTMLCanvasElement | null>(null);
-  const drawing = React.useRef(false);
-
-  React.useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    const ctx = c.getContext('2d');
-    if (!ctx) return;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, c.width, c.height);
-    if (value) {
-      const img = new Image(); img.src = value; img.onload = () => ctx.drawImage(img, 0, 0);
-    }
-  }, [value]);
-
-  const start = (e: any) => { drawing.current = true; draw(e); };
-  const end = () => { drawing.current = false; if (!ref.current) return; onChange(ref.current.toDataURL()); };
-  const draw = (e: any) => {
-    if (!drawing.current || !ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-    const ctx = ref.current.getContext('2d');
-    if (!ctx) return;
-    ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 0.1, y + 0.1); ctx.stroke();
-  };
-
-  const clear = () => { if (!ref.current) return; const ctx = ref.current.getContext('2d'); if (!ctx) return; ctx.clearRect(0,0,ref.current.width, ref.current.height); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,ref.current.width, ref.current.height); onChange(''); };
-
-  return (
-    <div>
-      <canvas
-        ref={ref}
-        width={500}
-        height={160}
-        aria-label={ariaLabel || 'signature-pad'}
-        className={`border w-full bg-white touch-none ${className}`}
-        onMouseDown={start}
-        onMouseMove={draw}
-        onMouseUp={end}
-        onTouchStart={start}
-        onTouchMove={draw}
-        onTouchEnd={end}
-      />
-      <div className="flex gap-2 mt-2">
-        <Btn className="bg-gray-100" onClick={clear}>Καθαρισμός</Btn>
-      </div>
-    </div>
-  );
-};
-
-const FilterBar = ({ producers = [], projects = [], value, onChange, showProject = true, showProducer = true }: any) => (
+const FilterBar = ({ producers = [], projects = [], debtors = [], transporters = [], plates = {}, value, onChange, showProject = true, showProducer = true, showDebtor = false, showTransporter = false, showPlate = false }: any) => (
   <div className="mb-3">
     <div className="bg-white/90 backdrop-blur border border-gray-200 rounded-xl p-3 shadow-sm">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
         {showProducer && (
           <div className="flex flex-col">
             <label className="text-xs text-gray-500 mb-1">Παραγωγός</label>
@@ -377,7 +473,46 @@ const FilterBar = ({ producers = [], projects = [], value, onChange, showProject
               onChange={(e: any) => onChange({ ...value, project: e.target.value })}
             >
               <option value="">— Όλα τα Έργα —</option>
-              {projects.map((p: any) => (<option key={p.id} value={p.id}>{p.projectName}</option>))}
+              {projects.map((p: any) => (<option key={p.id} value={p.id}>{p.projectName}{p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : ''}</option>))}
+            </select>
+          </div>
+        )}
+        {showDebtor && (
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Χρεώστης</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={value.debtor || ''}
+              onChange={(e: any) => onChange({ ...value, debtor: e.target.value })}
+            >
+              <option value="">— Όλοι —</option>
+              {debtors.map((d: string) => (<option key={d} value={d}>{d}</option>))}
+            </select>
+          </div>
+        )}
+        {showTransporter && (
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Μεταφορέας</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={value.transporter || ''}
+              onChange={(e: any) => onChange({ ...value, transporter: e.target.value, vehicle: '' })}
+            >
+              <option value="">— Όλοι —</option>
+              {transporters.map((t: string) => (<option key={t} value={t}>{t}</option>))}
+            </select>
+          </div>
+        )}
+        {showPlate && (
+          <div className="flex flex-col">
+            <label className="text-xs text-gray-500 mb-1">Αρ. Οχήματος</label>
+            <select
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={value.vehicle || ''}
+              onChange={(e: any) => onChange({ ...value, vehicle: e.target.value })}
+            >
+              <option value="">— Όλα —</option>
+              {(((value.transporter && plates && plates[value.transporter]) ? plates[value.transporter] : ([] as string[]).concat(...(Object.values(plates || {}) as any))).filter(Boolean) as string[]).map((pl: string) => (<option key={pl} value={pl}>{pl}</option>))}
             </select>
           </div>
         )}
@@ -403,7 +538,7 @@ const FilterBar = ({ producers = [], projects = [], value, onChange, showProject
       <div className="mt-2 flex justify-end gap-2">
         <button
           className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-          onClick={() => onChange({ producer: '', project: '', from: '', to: '' })}
+          onClick={() => onChange({ producer: '', project: '', debtor: '', transporter: '', vehicle: '', from: '', to: '' })}
         >
           Επαναφορά
         </button>
@@ -446,16 +581,22 @@ const BellBtn = ({ items, onJump }: any) => {
 };
 
 /******** producer details ********/
-const ProjectDetails = ({ project, transports, documents = [], onUploadDocument, onBack, onRequestTransfer, onCancelRequest, addNotif }: any) => {
+const ProjectDetails = ({ project, transports, documents = [], onUploadDocument, onBack, onRequestTransfer, onCancelRequest, addNotif, onUpdateProject }: any) => {
   const list = A(transports).filter((t: any) => t.projectId === project.id);
   const [justRequested, setJustRequested] = React.useState<string | null>(null);
   const [showReqModal, setShowReqModal] = React.useState(false);
   const [reqType, setReqType] = React.useState<'new-bin' | 'change-bin' | 'move-bin' | ''>('');
-  const [subTab, setSubTab] = React.useState<'overview' | 'collective'>('overview');
+  const [subTab, setSubTab] = React.useState<'overview' | 'reports' | 'collective'>('overview');
   // Products ordering (to Unit)
   const [prodOrderOpen, setProdOrderOpen] = React.useState(false);
   const [unitProducts, setUnitProducts] = React.useState<any[]>([]);
   const [prodOrderForm, setProdOrderForm] = React.useState<{ product: string; quantity: string }>({ product: '', quantity: '' });
+  const [editingTransporter, setEditingTransporter] = React.useState(false);
+  const [editTransporterVal, setEditTransporterVal] = React.useState<string>('');
+  React.useEffect(() => {
+    setEditingTransporter(false);
+    setEditTransporterVal(project.transporter || '');
+  }, [project?.id]);
   // Unit slips (from tablet) for off-platform projects
   const [unitSlips, setUnitSlips] = React.useState<any[]>([]);
   React.useEffect(() => {
@@ -495,17 +636,146 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
   const [wastePlanFile, setWastePlanFile] = React.useState<File | null>(null);   // Σχέδιο Διαχείρισης Αποβλήτων
   const [agreementFile, setAgreementFile] = React.useState<File | null>(null);   // Συμφωνία Διαχείρισης Αποβλήτων
 
-  const delivered = A(list).filter((t: any) => t.receivedByUnit);
+  // delivered transports (received by unit)
+  const deliveredTransports = A(list).filter((t: any) => t.receivedByUnit);
+  // also include manual slips recorded on the tablet/web (stored in localStorage under 'iwm_tablet_slips')
+  const deliveredSlips = A(unitSlips).filter((s: any) => {
+    // match either by project id or by project name/producer
+    if (!s) return false;
+    if (s.projectId && project.id && String(s.projectId) === String(project.id)) return true;
+    if (s.project && project.projectName && String(s.project).trim() === String(project.projectName).trim() && s.producer === project.producer) return true;
+    return false;
+  });
+
   const actualsMap: Record<string, number> = {};
-  delivered.forEach((t: any) => {
+  // accumulate from transports
+  deliveredTransports.forEach((t: any) => {
     const code = t.ekaCategory || '—';
     const w = parseFloat(String(t.weight || '0')) || 0;
     actualsMap[code] = (actualsMap[code] || 0) + w;
   });
+  // accumulate from slips (manual weighs)
+  deliveredSlips.forEach((s: any) => {
+    const code = s.ekaCategory || s.eka || '—';
+    const w = parseFloat(String(s.weight || s.w || s.weight_tn || '0')) || parseFloat(String(s.weight || '0')) || 0;
+    actualsMap[code] = (actualsMap[code] || 0) + w;
+  });
+  const isOff = !!project.offPlatformTransporter;
   const TON_PER_LOAD = 7;
   const totalEstimatedTons = A(project.wasteLines).reduce((s: number, w: any) => s + (Number(w.quantity || 0) || 0), 0);
+  // Prices: try to read unit-specific pricelist from localStorage, fallback to deterministic per-unit prices
+  const getStoredPriceMap = (unit: string) => {
+    try {
+      const rawAll = localStorage.getItem('iwm_unit_pricelist');
+      if (rawAll) {
+        const obj = JSON.parse(rawAll || '{}') || {};
+        if (obj && obj[unit]) return Array.isArray(obj[unit]) ? obj[unit].reduce((acc: any, p: any) => ({ ...acc, [String(p.code).replace(/\s+/g,'')]: Number(p.price) }), {}) : {};
+      }
+      const rawUnit = localStorage.getItem(`iwm_unit_pricelist_${unit}`);
+      if (rawUnit) {
+        const arr = JSON.parse(rawUnit || '[]') || [];
+        return Array.isArray(arr) ? arr.reduce((acc: any, p: any) => ({ ...acc, [String(p.code).replace(/\s+/g,'')]: Number(p.price) }), {}) : {};
+      }
+    } catch { /* ignore */ }
+    return {};
+  };
+
+  // helper: read subscription for a given producer (canonicalize legacy 'free' -> 'basic')
+  const subscriptionForProducer = (producerName: string) => {
+    try {
+      const key = `iwm_producer_subscription_${(producerName || '').replace(/\s/g, '_')}`;
+      const v = localStorage.getItem(key);
+      if (v === 'free') return 'basic';
+      return v || 'basic';
+    } catch {
+      return 'basic';
+    }
+  };
+
+  const priceFor = (code: string, unit: string) => {
+    const norm = String(code || '').replace(/\s+/g, '');
+    const stored = getStoredPriceMap(unit) || {};
+    if (stored && typeof stored[norm] === 'number') return stored[norm];
+    // No stored price — return 0 (unit admin should set prices to make estimates meaningful)
+    try { console.warn && console.warn(`No price for EKA ${norm} in unit ${unit}`); } catch {}
+    return 0;
+  };
+
+  const totalEstimatedCost = React.useMemo(() => {
+    try {
+      const unit = project.unit || '';
+      return A(project.wasteLines).filter((w:any) => Number(w.quantity || 0) > 0).reduce((sum: number, w: any) => {
+        const code = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+        if (EXCLUDED_EKA.has(code)) return sum;
+        const qty = Number(w.quantity || 0) || 0;
+        const price = priceFor(code, unit) || 0;
+        return sum + qty * price;
+      }, 0);
+    } catch { return 0; }
+  }, [project?.wasteLines, project?.unit]);
+
+  const fmtCurrency = (v: number) => {
+    try { return v.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).replace('\u00A0', ''); } catch { return `${Math.round(v)}€`; }
+  };
+  // Optimization modal state
+  const [optOpen, setOptOpen] = React.useState(false);
+  const [optResult, setOptResult] = React.useState<any>(null);
+
+  const computeOptimization = () => {
+    // Do not allow optimization for Basic subscribers (per-producer)
+    const curSub = subscriptionForProducer(project.producer);
+    if (curSub === 'basic') {
+      setOptResult({ kind: 'none', message: 'Η βελτιστοποίηση είναι διαθέσιμη μόνο σε Premium πακέτο.' });
+      setOptOpen(true);
+      return;
+    }
+    const lines = A(project.wasteLines).filter((w:any) => Number(w.quantity || 0) > 0 && !EXCLUDED_EKA.has(String(w.code || w.ekaCategory || '').replace(/\s+/g, '')));
+    const totalTons = lines.reduce((s:number, w:any) => s + (Number(w.quantity || 0) || 0), 0);
+    const t170904 = lines.reduce((s:number, w:any) => s + ((String(w.code || w.ekaCategory || '').replace(/\s+/g, '') === '170904') ? (Number(w.quantity || 0) || 0) : 0), 0);
+    const current = totalEstimatedCost;
+    if (totalTons === 0) {
+      setOptResult({ kind: 'none', message: 'Δεν υπάρχουν εκτιμώμενες ποσότητες για υπολογισμό.' });
+      setOptOpen(true);
+      return;
+    }
+
+    const baseSavingPercent = Math.floor(totalTons / 100) * 0.10; // 10% per 100 tn
+    // if majority of mass is 170904, generate targeted scenarios
+    const scenarios: any[] = [];
+    if (t170904 >= 0.5 * totalTons) {
+      // scenario: 2 skips (1 clean 170101 + 1 170904) - standard
+      scenarios.push({
+        id: '2skips_standard',
+        title: '2 κάδοι — 1 καθαρά (170101) + 1 170904',
+        multiplier: 1.0,
+        note: 'Διαχωρισμός σε δύο κάδους: καθαρά και 170904.'
+      });
+      // conservative
+      scenarios.push({ id: '2skips_conservative', title: '2 κάδοι — Συντηρητικό', multiplier: 0.6, note: 'Μερικός διαχωρισμός, λιγότερη απόδοση ταξινόμησης.' });
+      // aggressive: try more sorting / additional κάδοι
+      scenarios.push({ id: '3skips_aggressive', title: '3 κάδοι — Περισσότερος διαχωρισμός', multiplier: 1.2, note: 'Επιπλέον κάδοι για μεγαλύτερη καθαρότητα' });
+    } else {
+      // generic suggestions even if 170904 not majority
+      scenarios.push({ id: '2skips_generic', title: '2 κάδοι — Διαχωρισμός', multiplier: 0.8, note: 'Προσπάθεια διαχωρισμού σε καθαρά/αναμεικτα' });
+      scenarios.push({ id: 'sorting_plan', title: 'Σχέδιο Ταξινόμησης', multiplier: 0.5, note: 'Εντατικό πρόγραμμα ταξινόμησης στο εργοτάξιο' });
+    }
+
+    const computed = scenarios.map(s => {
+      const savingPercent = Math.min(0.9, baseSavingPercent * (s.multiplier || 1));
+      const proposed = current * (1 - savingPercent);
+      return { ...s, savingPercent, current, proposed, savings: current - proposed };
+    });
+
+    setOptResult({ kind: 'scenarios', totalTons, t170904, scenarios: computed });
+    setOptOpen(true);
+  };
+  const applyScenario = (s: any) => {
+    // placeholder: in future create a transfer/order/action
+    try { alert(`Εφαρμογή σεναρίου: ${s.title}\nΕξοικονόμηση: ${fmtCurrency(s.savings)}`); } catch {}
+    setOptOpen(false);
+  };
   const estimatedLoads = totalEstimatedTons > 0 ? Math.ceil(totalEstimatedTons / TON_PER_LOAD) : 0;
-  const completedLoads = delivered.length;
+  const completedLoads = deliveredTransports.length;
   const overallPct = estimatedLoads > 0 ? Math.min(100, Math.round((completedLoads / estimatedLoads) * 100)) : 0;
 
   const quickRequest = (type: 'empty-bin' | 'full-pickup' | 'change-bin') => {
@@ -550,8 +820,26 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
 
   return (
     <div className="p-4">
+      
       <div className="flex justify-between items-center mb-3">
-        <h2 className="text-xl font-bold">{project.projectName}</h2>
+  <h2 className="text-xl font-bold">
+    {project.projectName}
+    {project.agreement && project.agreement !== '-' ? (
+      project.agreement === 'Σε εκκρεμότητα' ? (
+        <span className="ml-2 relative inline-flex items-center group">
+          <span aria-hidden title="Συμφωνία σε εκκρεμότητα" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">!</span>
+          <div className="hidden group-hover:block absolute left-0 top-full mt-2 z-20 w-64 bg-white border border-gray-200 rounded shadow p-2 text-xs text-gray-700">
+            <ul className="list-disc pl-4 space-y-1">
+              <li>Εκκρεμεί η Συμφωνία Διαχείρισης Αποβλήτων</li>
+              <li>Εκκρεμεί η έκδοση ID του έργου</li>
+            </ul>
+          </div>
+        </span>
+      ) : (
+        ` (${project.agreement})`
+      )
+    ) : ''}
+  </h2>
         <div className="flex gap-2">
           <Btn className="bg-gray-100" onClick={onBack}>← Πίσω</Btn>
         </div>
@@ -576,6 +864,7 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
           <TabBar
             tabs={[
               { key: 'overview', label: 'Σύνοψη', count: 0 },
+              { key: 'reports', label: 'Αναφορές', count: 0 },
               { key: 'collective', label: collectiveLabel, count: docsForProject.length },
             ]}
             active={subTab}
@@ -586,57 +875,234 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
 
       {subTab === 'overview' && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm mb-3">
-            <div className="bg-white rounded border p-3 lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 text-sm mb-3">
+            <div className="bg-white rounded border p-3 lg:col-span-4">
               <div className="font-semibold mb-2">Στοιχεία Έργου</div>
-              <div>Διεύθυνση: {project.address}</div>
-              <div>Ημ. Έναρξης: {fmt(project.start)}</div>
-              <div>Ημ. Λήξης: {fmt(project.end)}</div>
-              <div>Μονάδα: {project.unit}</div>
-              <div>Μεταφορέας: {project.transporter}</div>
-              <div>Υπεύθυνος: {project.managerName} — {project.managerPhone} — {project.managerEmail}</div>
-            </div>
-
-            <div className="bg-white rounded border p-3">
-              <div className="font-semibold mb-2">Εντολές προς Μεταφορέα</div>
-              <div className="space-y-2">
-                <div className="w-full rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-yellow-50 to-white flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Trash2 className="w-6 h-6 text-yellow-600" />
-                    <div>
-                      <div className="font-semibold">Αίτημα Κάδου</div>
-                      <div className="text-xs text-gray-600">Επιλέξτε τύπο αιτήματος (Νέος / Αλλαγή / Μεταφορά)</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                  {/* Removed invalid setTab/setMenuOpen for ProjectDetails, these should only be in Producer menu */}
+                { (project.addressStreet || project.addressLocation || project.addressCity || project.addressPostalCode || project.addressProvince || project.addressPlanSheetNumber || project.addressParcelNumber || project.addressOtherNotes || project.address) && (
+                  <div>
+                    <div className="font-bold text-sm mb-1">1. Διεύθυνση</div>
+                    <div className="text-gray-800">{([project.addressStreet, project.addressLocation || project.addressCity, project.addressPostalCode, project.addressProvince].filter(Boolean).join(', ') || project.address || '—')}</div>
+                    <div className="mt-1 text-gray-600 text-xs">
+                      {project.addressPlanSheetNumber && <span className="mr-3">Αρ. Φύλλου/Σχεδίου: {project.addressPlanSheetNumber}</span>}
+                      {project.addressParcelNumber && <span className="mr-3">Αρ. Τεμαχίου/ων: {project.addressParcelNumber}</span>}
+                      {project.addressOtherNotes && <div className="mt-1">Σημειώσεις: {project.addressOtherNotes}</div>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowReqModal(true)} className="px-3 py-1 rounded bg-yellow-600 text-white text-sm">Αίτημα</button>
-                  </div>
-                </div>
-
-                {list.some((t: any) => t.fromProducer && !t.approvedByProducer && ['new-bin','move-bin','change-bin'].includes(t.requestType)) && (
-                  <div className="text-xs text-gray-600">Υπάρχει αίτημα σε αναμονή αποδοχής</div>
                 )}
 
-                {justRequested && (
-                  <div className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                    {justRequested === 'new-bin' ? 'Ο μεταφορέας θα ενημερωθεί για νέο κάδο.' : justRequested === 'move-bin' ? 'Ο μεταφορέας θα ενημερωθεί για μεταφορά κάδου.' : 'Ο μεταφορέας θα ενημερωθεί για αλλαγή κάδου.'}
+                {/* 2. Owner */}
+                { (project.ownerName || project.ownerEmail || project.ownerPhone || project.ownerPostalAddress) && (
+                  <div>
+                    <div className="font-bold text-sm mb-1">2. Κύριος(οι) / Ιδιοκτήτης(ες)</div>
+                    <div className="text-gray-800">{project.ownerName || '—'}</div>
+                    <div className="mt-1 text-gray-600 text-xs">
+                      {project.ownerPostalAddress && <div>Ταχ. Διεύθυνση: {project.ownerPostalAddress}</div>}
+                      {project.ownerPhone && <div>Τηλ.: {project.ownerPhone}</div>}
+                      {project.ownerEmail && <div>e-mail: {project.ownerEmail}</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Contractor */}
+                { (project.contractorName || project.contractorEmail || project.contractorPhone || project.contractorPostalAddress || project.contractorRegistryNumber || project.contractorID || project.contractorVAT || project.contractorTechDirectorName) && (
+                  <div>
+                    <div className="font-bold text-sm mb-1">3. Εργολήπτης / Εταιρεία</div>
+                    <div className="text-gray-800 font-semibold">{project.contractorName || '—'}</div>
+                    <div className="mt-1 text-gray-600 text-xs">
+                      {project.contractorPostalAddress && <div>Ταχ. Διεύθυνση: {project.contractorPostalAddress}</div>}
+                      {project.contractorPhone && <div>Τηλ.: {project.contractorPhone}</div>}
+                      {project.contractorEmail && <div>e-mail: {project.contractorEmail}</div>}
+                      {project.contractorRegistryNumber && <div>Αρ. Μητρώου: {project.contractorRegistryNumber}</div>}
+                      {project.contractorID && <div>Αρ. Ταυτότητας: {project.contractorID}</div>}
+                      {project.contractorVAT && <div>Αρ. ΦΠΑ: {project.contractorVAT}</div>}
+                      {project.contractorTechDirectorName && <div>Τεχνικός Διευθυντής: {project.contractorTechDirectorName}</div>}
+                    </div>
                   </div>
                 )}
               </div>
+
+              <div className="space-y-3">
+                {/* 4. System */}
+                <div>
+                  <div className="font-bold text-sm mb-1">4. Σύστημα</div>
+                  <div className="text-gray-800">{project.collectiveSystem || '—'}</div>
+                </div>
+
+                {/* 5. Supervisor */}
+                { (project.supervisorName || project.supervisorRegistryNumber) && (
+                  <div>
+                      <div className="font-bold text-sm mb-1">5. Επιβλέπων Μηχανικός</div>
+                    <div className="text-gray-800">{project.supervisorName || '—'}{project.supervisorRegistryNumber ? ` — ΕΤΕΚ ${project.supervisorRegistryNumber}` : ''}</div>
+                  </div>
+                )}
+
+                {/* 6. Type / Size */}
+                { (project.typeNewConstruction || project.typeExtension || project.typeConversion || project.typeRenovation || project.typeDemolition || project.typeOther || project.sizeDetails) && (
+                  <div>
+                    <div className="font-bold text-sm mb-1">6. Στοιχεία / Είδος Έργου</div>
+                    <div className="text-gray-800">{project.sizeDetails || '—'}</div>
+                    <div className="mt-1 text-gray-600 text-xs">{(() => { const parts: string[] = []; if (project.typeNewConstruction) parts.push('Νέα Κατασκευή'); if (project.typeExtension) parts.push('Επέκταση/Προσθήκη'); if (project.typeConversion) parts.push('Μετατροπή/Αλλαγή χρήσης'); if (project.typeRenovation) parts.push('Ανακαίνιση / Αποκατάσταση'); if (project.typeDemolition) parts.push('Κατεδάφιση'); if (project.typeOther) parts.push(project.typeOther); return parts.length ? parts.join(', ') : '—'; })()}</div>
+                  </div>
+                )}
+
+                {/* 7. Period */}
+                {(project.start || project.end) && (
+                  <div>
+                    <div className="font-bold text-sm mb-1">7. Περίοδος εκτέλεσης</div>
+                    <div className="text-gray-800 font-semibold">{fmt(project.start)} — {fmt(project.end)}</div>
+                  </div>
+                )}
+
+                {/* 8. Συνεργάτες */}
+                <div>
+                  <div className="font-bold text-sm mb-1">8. Συνεργάτες</div>
+                  <div className="text-gray-800">Μονάδα: <span className="font-semibold">{project.unit || '—'}</span></div>
+                  <div className="text-gray-800">Μεταφορέας: {(() => {
+                    const ps = subscriptionForProducer(project.producer);
+                    const platformOptions = (typeof TRANSPORTERS !== 'undefined' && Array.isArray(TRANSPORTERS)) ? TRANSPORTERS : [];
+                    if (ps === 'premium') {
+                      if (!editingTransporter) {
+                        return (
+                          <span className="inline-flex items-center gap-2">
+                            <span>{project.transporter || '—'}</span>
+                            {project.offPlatformTransporter && <span className="text-xs text-gray-500">(εκτός πλατφόρμας)</span>}
+                            <button className="text-xs text-blue-600 underline ml-2" onClick={() => { setEditTransporterVal(project.transporter || ''); setEditingTransporter(true); }}>Αλλαγή</button>
+                          </span>
+                        );
+                      }
+                      return (
+                        <div className="inline-flex items-center gap-2">
+                          <select className="border p-1" value={editTransporterVal} onChange={(e:any) => setEditTransporterVal(e.target.value)}>
+                            <option value="">— Επιλογή Μεταφορέα —</option>
+                            {platformOptions.map((o: string) => (<option key={o} value={o}>{o}</option>))}
+                          </select>
+                          <button className="px-2 py-1 rounded bg-blue-600 text-white text-sm" onClick={() => {
+                            if (onUpdateProject) onUpdateProject(project.id, { transporter: editTransporterVal, offPlatformTransporter: false, isNew: true });
+                            setEditingTransporter(false);
+                          }}>Αποθήκευση</button>
+                          <button className="px-2 py-1 rounded bg-gray-200 text-sm" onClick={() => { setEditingTransporter(false); setEditTransporterVal(project.transporter || ''); }}>Άκυρο</button>
+                        </div>
+                      );
+                    }
+                    return <><span>{project.transporter || '—'}</span>{project.offPlatformTransporter ? <span className="text-xs text-gray-500"> (εκτός πλατφόρμας)</span> : null}</>;
+                  })()}</div>
+                </div>
+              </div>
+            </div>
             </div>
 
-            <div className="bg-white rounded border p-3">
-              <div className="font-semibold mb-2">Εντολές προς Μονάδα Διαχείρισης Αποβλήτων</div>
-              <div className="w-full rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-indigo-50 to-white flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-6 h-6 text-indigo-600" />
+            <div className="bg-white rounded border p-3 lg:col-span-4">
+              <div className="font-semibold mb-3">Εντολές &amp; Εργαλεία Έργου</div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-yellow-50 to-white h-full flex flex-col justify-between">
                   <div>
-                    <div className="font-semibold">Παραγγελία Υλικού</div>
-                    <div className="text-xs text-gray-600">Επέλεξε προϊόν και ποσότητα για παραγγελία από τη Μονάδα</div>
+                    <div className="flex items-center gap-3">
+                      <Trash2 className="w-6 h-6 text-yellow-600" />
+                      <div>
+                        <div className="font-semibold">Αίτημα Κάδου</div>
+                        <div className="text-xs text-gray-600">Επιλέξτε τύπο αιτήματος (Νέος / Αλλαγή / Μεταφορά)</div>
+                      </div>
+                    </div>
+                    {list.some((t: any) => t.fromProducer && !t.approvedByProducer && ['new-bin','move-bin','change-bin'].includes(t.requestType)) && (
+                      <div className="mt-2 text-xs text-gray-600">Υπάρχει αίτημα σε αναμονή αποδοχής</div>
+                    )}
+                    {justRequested && (
+                      <div className="mt-2 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                        {justRequested === 'new-bin' ? 'Ο μεταφορέας θα ενημερωθεί για νέο κάδο.' : justRequested === 'move-bin' ? 'Ο μεταφορέας θα ενημερωθεί για μεταφορά κάδου.' : 'Ο μεταφορέας θα ενημερωθεί για αλλαγή κάδου.'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center justify-end">
+                    {(() => {
+                      const ps = subscriptionForProducer(project.producer);
+                      return (
+                        <button
+                          onClick={() => { if (ps !== 'basic') setShowReqModal(true); }}
+                          disabled={ps === 'basic'}
+                          className={`${ps === 'basic' ? 'px-3 py-1 rounded bg-gray-300 text-white text-sm cursor-not-allowed' : 'px-3 py-1 rounded bg-yellow-600 text-white text-sm'}`}
+                          title={ps === 'basic' ? 'Η λειτουργία Αίτημα Κάδου απαιτεί Premium συνδρομή' : 'Αίτημα'}
+                        >Αίτημα</button>
+                      );
+                    })()}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => { refreshUnitProducts(); setProdOrderOpen(true); }} className="px-3 py-1 rounded bg-indigo-600 text-white text-sm">Παραγγελία</button>
+
+                <div className="rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-indigo-50 to-white h-full flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-6 h-6 text-indigo-600" />
+                      <div>
+                        <div className="font-semibold">Παραγγελία Υλικού</div>
+                        <div className="text-xs text-gray-600">Επέλεξε προϊόν και ποσότητα για παραγγελία από τη Μονάδα</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-end">
+                    <button onClick={() => { refreshUnitProducts(); setProdOrderOpen(true); }} className="px-3 py-1 rounded bg-indigo-600 text-white text-sm">Παραγγελία</button>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 hover:shadow transition bg-gradient-to-r from-green-50 to-white h-full flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="w-6 h-6 text-green-600" />
+                      <div>
+                        <div className="font-semibold">Υπολογιστής Κόστους</div>
+                        <div className="text-xs text-gray-600">Εκτίμηση κόστους ανά τόνο / συνολικό κόστος διαχείρισης</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">Συνολικό κόστος: <span className="text-green-700">{fmtCurrency(totalEstimatedCost)}</span></div>
+                      <div className="text-xs text-gray-500 mt-1">(Υπολογισμός βάσει εκτιμημένων ποσοτήτων και τιμών μονάδας)</div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-end">
+                      {(() => {
+                        const ps = subscriptionForProducer(project.producer);
+                        return (
+                          <button
+                            onClick={() => computeOptimization()}
+                            disabled={ps === 'basic'}
+                            className={`${ps === 'basic' ? 'px-3 py-1 rounded bg-gray-300 text-white text-sm cursor-not-allowed' : 'px-3 py-1 rounded bg-green-600 text-white text-sm'}`}
+                            title={ps === 'basic' ? 'Η Βελτιστοποίηση απαιτεί Premium συνδρομή' : 'Βελτιστοποίηση'}
+                          >Βελτιστοποίηση</button>
+                        );
+                      })()}
+                    </div>
+                    {optOpen && (
+                      <Modal title="Πρόταση Βελτιστοποίησης Κόστους" onClose={() => setOptOpen(false)}>
+                        <div className="p-2 text-sm">
+                          {optResult?.kind === 'scenarios' ? (
+                            <div className="space-y-3">
+                              {A(optResult.scenarios).map((s: any) => (
+                                <div key={s.id} className="border rounded p-2">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="font-semibold">{s.title}</div>
+                                      <div className="text-xs text-gray-500">{s.note}</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xl font-bold text-green-700">{fmtCurrency(s.proposed)}</div>
+                                      <div className="text-sm text-gray-600">Εξοικονόμηση: {fmtCurrency(s.savings)}</div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 text-right">
+                                    <button className="px-3 py-1 rounded bg-blue-600 text-white text-sm" onClick={() => applyScenario(s)}>Εφαρμογή</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div>{optResult?.message || 'Δεν υπάρχουν προτάσεις.'}</div>
+                          )}
+                        </div>
+                      </Modal>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -648,20 +1114,26 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
               <table className="w-full border text-sm">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="border px-2">Α/Α</th>
+                    <th className="border px-2 whitespace-nowrap">Α/Α</th>
                     <th className="border px-2">ΕΚΑ</th>
                     <th className="border px-2">Περιγραφή</th>
                     <th className="border px-2">Ποσότητα (tn)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {A(project.wasteLines).length === 0 ? (
+                  {A(project.wasteLines).filter((w:any) => {
+                    const code = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+                    return Number(w.quantity || 0) > 0 && !EXCLUDED_EKA.has(code);
+                  }).length === 0 ? (
                     <tr><td className="border text-center p-3" colSpan={4}>—</td></tr>
                   ) : (
-                    A(project.wasteLines).map((w: any, i: number) => (
+                    A(project.wasteLines).filter((w:any) => {
+                      const code = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+                      return Number(w.quantity || 0) > 0 && !EXCLUDED_EKA.has(code);
+                    }).map((w: any, i: number) => (
                       <tr key={i}>
-                        <td className="border text-center">{i + 1}</td>
-                        <td className="border px-2">{w.code}</td>
+                        <td className="border text-center"><span className="whitespace-nowrap">{i + 1}</span></td>
+                        <td className="border px-2"><span className="whitespace-nowrap">{String(w.code).replace(/ /g, '\u00A0')}</span></td>
                         <td className="border px-2">{w.description}</td>
                         <td className="border px-2 text-right">{Number(w.quantity || 0)}</td>
                       </tr>
@@ -690,25 +1162,55 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                 <table className="w-full border text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border px-2">Α/Α</th>
+                      <th className="border px-2 whitespace-nowrap">Α/Α</th>
                       <th className="border px-2">ΕΚΑ</th>
                       <th className="border px-2">Περιγραφή</th>
                       <th className="border px-2">Ποσότητα (tn)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {A(project.wasteLines).length === 0 ? (
-                      <tr><td className="border text-center p-3" colSpan={4}>—</td></tr>
-                    ) : (
-                      A(project.wasteLines).map((w: any, i: number) => (
-                        <tr key={`actual-${w.code}-${i}`}>
-                          <td className="border text-center">{i + 1}</td>
-                          <td className="border px-2">{w.code}</td>
-                          <td className="border px-2">{w.description}</td>
-                          <td className="border px-2 text-right">{Number(actualsMap[w.code] || 0).toFixed(2)}</td>
-                        </tr>
-                      ))
-                    )}
+                    {(() => {
+                      const visible = A(project.wasteLines).filter((w:any) => {
+                        const code = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+                        return Number(w.quantity || 0) > 0 && !EXCLUDED_EKA.has(code);
+                      });
+                      if (visible.length === 0) return (<tr><td className="border text-center p-3" colSpan={4}>—</td></tr>);
+                      const actualCodes = Object.keys(actualsMap || {});
+                      const shownExtras = new Set<string>();
+                      return visible.map((w: any, i: number) => {
+                        const codeNorm = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+                        // group by first 3 digits (e.g., 170xxx) to find alternative actual codes like 170101 vs 170904
+                        const groupKey = codeNorm.slice(0, 3);
+                        const extras = actualCodes.filter(c => {
+                          const cn = String(c || '').replace(/\s+/g, '');
+                          return cn !== codeNorm && cn.startsWith(groupKey) && !EXCLUDED_EKA.has(cn) && Number(actualsMap[c] || 0) > 0;
+                        });
+                        return (
+                          <React.Fragment key={`actual-frag-${codeNorm}-${i}`}>
+                            {extras.filter(c => !shownExtras.has(c)).map((c: string, idx: number) => {
+                              shownExtras.add(c);
+                              const cn = String(c || '').replace(/\s+/g, '');
+                              const ek = A(EKA).find((e: any) => String(e.code || '').replace(/\s+/g, '') === cn) || {};
+                              const desc = (ek && ek.description) ? ek.description : '(Αναφορά από ζύγιση)';
+                              return (
+                                <tr key={`actual-extra-${c}-${i}`} className="bg-yellow-50">
+                                  <td className="border text-center"><span className="whitespace-nowrap">{/* keep numbering aligned with parent index */}{i + 1}</span></td>
+                                  <td className="border px-2"><span className="whitespace-nowrap">{String(c).replace(/ /g, '\u00A0')}</span></td>
+                                  <td className="border px-2">{desc}</td>
+                                  <td className="border px-2 text-right">{Number(actualsMap[c] || 0).toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr key={`actual-${codeNorm}-${i}`}>
+                              <td className="border text-center"><span className="whitespace-nowrap">{i + 1}</span></td>
+                              <td className="border px-2"><span className="whitespace-nowrap">{String(w.code).replace(/ /g, '\u00A0')}</span></td>
+                              <td className="border px-2">{w.description}</td>
+                              <td className="border px-2 text-right">{Number(actualsMap[w.code] || 0).toFixed(2)}</td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -716,29 +1218,11 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
           </div>
 
             <div className="grid grid-cols-1 gap-4 mb-4">
-            <div className="bg-white rounded border p-3">
-              <div className="font-semibold mb-2">Εκκρεμείς Μεταφορές</div>
-              {project.offPlatformTransporter && (
-                <div className="mb-2 p-2 rounded border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold">i</span>
-                  <span className="mr-auto">Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα.</span>
-                  <button
-                    className="px-2 py-1 rounded bg-blue-600 text-white text-xs"
-                    onClick={() => {
-                      try {
-                        addNotif && addNotif(
-                          'Αίτημα εντύπων προς Μονάδα',
-                          `Αποστολή εντύπων αναγνώρισης/παρακολούθησης για το έργο "${project.projectName}"`,
-                          { page: 'unit', tab: 'transfers' }
-                        );
-                      } catch {}
-                      alert('Στάλθηκε αίτημα προς τη Μονάδα για αποστολή εντύπων.');
-                    }}
-                  >
-                    Αίτημα προς Μονάδα για αποστολή εντύπων
-                  </button>
-                </div>
-              )}
+              {/* Forms + delivery tables container */}
+              <div className={`bg-white rounded border p-3 space-y-4 ${isOff ? 'pointer-events-none bg-gradient-to-r from-gray-50 to-white border-gray-200 text-gray-500 ring-1 ring-gray-100 shadow-sm' : ''}`}>
+                <div className="font-semibold text-lg">Ψηφιακά Εντυπα Αναγνώρισης και Παρακαολουθησης</div>
+                <div>
+                  <div className="font-semibold mb-2">Παράδοση στον μεταφορέα (Κίτρινο μέρος Εντύπου Α&Π)</div>
               <table className="w-full border text-sm">
                 <thead className="bg-gray-100">
                   <tr>
@@ -750,58 +1234,38 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                     <th className="border px-2">Μεταφορέας</th>
                     <th className="border px-2">Αρ. Αυτοκινήτου</th>
                     <th className="border px-2">Μονάδα</th>
+                    <th className="border px-2">Κατάσταση</th>
                     <th className="border px-2">PDF</th>
                   </tr>
                 </thead>
                 <tbody>
                   {project.offPlatformTransporter ? (
-                    <tr><td className="border text-center p-3" colSpan={9}>Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα</td></tr>
-                  ) : (
-                    list.filter((t: any) => t.approvedByProducer && !t.receivedByUnit).length === 0 ? (
-                      <tr><td className="border text-center p-3" colSpan={9}>—</td></tr>
-                    ) : (
-                      list.filter((t: any) => t.approvedByProducer && !t.receivedByUnit).map((t: any, i: number) => (
-                        <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
-                          <td className="border text-center">{i + 1}</td>
-                          <td className="border px-2">{project.projectName}</td>
-                          <td className="border px-2">{t.address || project.address}</td>
-                          <td className="border text-center">{fmt(t.date)}</td>
-                          <td className="border text-center">{t.time || '-'}</td>
-                          <td className="border text-center">{t.transporter || project.transporter || '—'}</td>
-                          <td className="border text-center">{t.vehicle || '—'}</td>
-                          <td className="border text-center">{t.unit || project.unit || '—'}</td>
-                          <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
-                        </tr>
-                      ))
-                    )
-                  )}
+                    <tr><td className="border text-center p-3" colSpan={10}>Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα</td></tr>
+                  ) : (() => {
+                  const rows = list.filter((t: any) => t.approvedByProducer && !t.manualWeighed && !t.manualCreated);
+                    if (rows.length === 0) return (<tr><td className="border text-center p-3" colSpan={10}>—</td></tr>);
+                    return rows.map((t: any, i: number) => (
+                      <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
+                        <td className="border text-center">{i + 1}</td>
+                        <td className="border px-2">{project.projectName}{project.agreement && project.agreement !== '-' ? ` (${project.agreement})` : ''}</td>
+                        <td className="border px-2">{t.address || project.address}</td>
+                        <td className="border text-center">{fmt(t.date)}</td>
+                        <td className="border text-center">{t.time || '-'}</td>
+                        <td className="border text-center">{t.transporter || project.transporter || '—'}</td>
+                        <td className="border text-center">{t.vehicle || '—'}</td>
+                        <td className="border text-center">{t.unit || project.unit || '—'}</td>
+                        <td className="border text-center">
+                          {t.receivedByUnit ? (<span className="text-green-700 font-medium">Ολοκληρώθηκε</span>) : (<span className="text-gray-600">Εκκρεμεί</span>)}
+                        </td>
+                        <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
-            </div>
-
-            <div className="bg-white rounded border p-3">
-              <div className="font-semibold mb-2">Ολοκληρωμένες Μεταφορές</div>
-              {project.offPlatformTransporter && (
-                <div className="mb-2 p-2 rounded border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold">i</span>
-                  <span className="mr-auto">Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα.</span>
-                  <button
-                    className="px-2 py-1 rounded bg-blue-600 text-white text-xs"
-                    onClick={() => {
-                      try {
-                        addNotif && addNotif(
-                          'Αίτημα εντύπων προς Μονάδα',
-                          `Αποστολή εντύπων αναγνώρισης/παρακολούθησης για το έργο "${project.projectName}"`,
-                          { page: 'unit', tab: 'transfers' }
-                        );
-                      } catch {}
-                      alert('Στάλθηκε αίτημα προς τη Μονάδα για αποστολή εντύπων.');
-                    }}
-                  >
-                    Αίτημα προς Μονάδα για αποστολή εντύπων
-                  </button>
-                </div>
-              )}
+              </div>
+              <div className="mt-3">
+                <div className="font-semibold mb-2">Ολοκληρωμένες Μεταφορές (Ροζ μέρος Εντύπου Α&Π)</div>
               <table className="w-full border text-sm">
                 <thead className="bg-gray-100">
                   <tr>
@@ -830,7 +1294,7 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                           <tr key={t.id}>
                             <td className="border text-center">{i + 1}</td>
                             <td className="border text-center">{t.producer}</td>
-                            <td className="border text-center">{t.project || project.projectName}</td>
+                            <td className="border text-center">{t.project || (project.projectName + (project.agreement && project.agreement !== '-' ? ` (${project.agreement})` : ''))}</td>
                             <td className="border text-center">{t.transporter || prj?.transporter || '—'}</td>
                             <td className="border text-center">{t.vehicle || '—'}</td>
                             <td className="border text-center">{fmt(t.unitDate || t.date)}</td>
@@ -845,7 +1309,31 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
+            {isOff && (
+              <div className="mb-2 p-2 rounded border border-yellow-200 bg-yellow-50 text-yellow-800 text-sm flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-bold">i</span>
+                <span className="mr-auto">Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα.</span>
+                <button
+                  className="px-2 py-1 rounded bg-blue-600 text-white text-xs"
+                  onClick={() => {
+                    try {
+                      addNotif && addNotif(
+                        'Αίτημα εντύπων προς Μονάδα',
+                        `Αποστολή εντύπων αναγνώρισης/παρακολούθησης για το έργο "${project.projectName}"`,
+                        { page: 'unit', tab: 'transfers' }
+                      );
+                    } catch {}
+                    alert('Στάλθηκε αίτημα προς τη Μονάδα για αποστολή εντύπων.');
+                  }}
+                >
+                  Αίτημα προς Μονάδα για αποστολή εντύπων
+                </button>
+              </div>
+            )}
+            {/* Separation before slips section */}
+            <div className="my-4 border-t" />
             {project.offPlatformTransporter && (
               <div className="bg-white rounded border p-3">
                 <div className="font-semibold mb-2">Δελτία Παραλαβής Μονάδας Διαχείρισης Αποβλήτων</div>
@@ -895,6 +1383,23 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
             )}
           </div>
         </>
+      )}
+
+      {subTab === 'reports' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mb-4">
+          <div className="bg-white rounded border p-3">
+            <div className="text-xs text-gray-500">Συνολικές Μεταφορές</div>
+            <div className="text-2xl font-semibold">{list.length}</div>
+          </div>
+          <div className="bg-white rounded border p-3">
+            <div className="text-xs text-gray-500">Ολοκληρωμένες</div>
+            <div className="text-2xl font-semibold">{deliveredTransports.length}</div>
+          </div>
+          <div className="bg-white rounded border p-3">
+            <div className="text-xs text-gray-500">Συνολικό Βάρος (tn)</div>
+            <div className="text-2xl font-semibold">{(Object.values(actualsMap).reduce((s: number, v: any) => s + (Number(v) || 0), 0)).toFixed(2)}</div>
+          </div>
+        </div>
       )}
 
       {showReqModal && (
@@ -1073,35 +1578,48 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
                     <input type="file" className="w-full border p-1" accept=".pdf,image/*" onChange={(e: any) => setWastePlanFile(e.target.files?.[0] || null)} />
                   </div>
                   <div>
-                    <button disabled={uploadedWastePlan} className={`w-full px-3 py-2 rounded ${uploadedWastePlan ? 'bg-green-100 text-green-700 cursor-default' : 'bg-green-600 text-white'}`} onClick={() => submitProjectDoc('Σχέδιο Διαχείρισης Αποβλήτων', wastePlanFile, () => setWastePlanFile(null))}>
-                      {uploadedWastePlan ? 'Ανέβηκε' : 'Ανέβασμα'}
-                    </button>
+                  {/* If transporter is off-platform, show the request banner below the tables */}
                   </div>
                 </div>
               </div>
 
-              {/* Συμφωνία Διαχείρισης Αποβλήτων */}
+                {/* Συμφωνία Διαχείρισης Αποβλήτων */}
               <div className="border rounded p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-medium">Συμφωνία Διαχείρισης Αποβλήτων</div>
                   {/* καμία ένδειξη τίτλου/τικ */}
                 </div>
-                {/* Αν υπάρχει αριθμός συμφωνίας, δείχνουμε τον αριθμό και PDF, αλλιώς εμφάνιση ενημερωτικού κειμένου */}
-                {project.agreement ? (
-                  <div className="flex items-center justify-between bg-gray-50 border rounded p-3">
-                    <div className="text-sm">
-                      <div className="text-gray-700">Αρ. Συμφωνίας: <span className="font-semibold">{project.agreement}</span></div>
-                      {project.agreementDate && (
-                        <div className="text-xs text-gray-500">Ημ/νία: {fmt(project.agreementDate)}</div>
-                      )}
-                    </div>
-                    <div>
-                      <Btn className="bg-gray-100" onClick={() => pdfAgreement(project)}>PDF</Btn>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-500">Δημιουργείται αυτόματα μετά την αποδοχή της μονάδας</div>
-                )}
+                {/* Agreement display logic:
+                    - if project.agreement exists and is not '-', show agreement number and PDF
+                    - if estimated < 12 tn, show '-' and explanatory text
+                    - otherwise show the default informative text */}
+                {(() => {
+                  const est = project.estimated ?? sumWaste(project.wasteLines || []);
+                  if (project.agreement && project.agreement !== '-') {
+                    return (
+                      <div className="flex items-center justify-between bg-gray-50 border rounded p-3">
+                        <div className="text-sm">
+                          <div className="text-gray-700">Αρ. Συμφωνίας: <span className="font-semibold">{project.agreement}</span></div>
+                          {project.agreementDate && (
+                            <div className="text-xs text-gray-500">Ημ/νία: {fmt(project.agreementDate)}</div>
+                          )}
+                        </div>
+                        <div>
+                          <Btn className="bg-gray-100" onClick={() => pdfAgreement(project)}>PDF</Btn>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if ((est || 0) < 12) {
+                    return (
+                      <div className="text-xs text-gray-700">
+                        <div className="font-semibold">-</div>
+                        <div className="text-xs text-gray-500 mt-1">Για έργα με απόβλητα &lt;12 κυβικά δεν χρειάζεται συμφωνία</div>
+                      </div>
+                    );
+                  }
+                  return <div className="text-xs text-gray-500">Δημιουργείται αυτόματα μετά την αποδοχή της μονάδας</div>;
+                })()}
               </div>
 
               <div className="flex justify-end pt-2">
@@ -1118,7 +1636,7 @@ const ProjectDetails = ({ project, transports, documents = [], onUploadDocument,
 /* ProjectView: full project page with details, pending/completed transfers and comparison tables */
 const ProjectView = ({ project, transports, onBack }: any) => {
   // pending and completed transfers for project
-  const pending = A(transports).filter((t: any) => t.projectId === project.id && t.approvedByProducer && !t.receivedByUnit);
+  const pending = A(transports).filter((t: any) => t.projectId === project.id && t.approvedByProducer && !t.receivedByUnit && !t.manualWeighed && !t.manualCreated);
   const completed = A(transports).filter((t: any) => t.projectId === project.id && t.receivedByUnit);
 
   // estimated lines from project
@@ -1184,7 +1702,24 @@ const ProjectView = ({ project, transports, onBack }: any) => {
         <div>
           <Btn className="bg-gray-100" onClick={onBack}>← Επιστροφή</Btn>
         </div>
-        <h2 className="text-xl font-bold">{project.projectName}</h2>
+  <h2 className="text-xl font-bold">
+    {project.projectName}
+    {project.agreement && project.agreement !== '-' ? (
+      project.agreement === 'Σε εκκρεμότητα' ? (
+        <span className="ml-2 relative inline-flex items-center group">
+          <span aria-hidden title="Συμφωνία σε εκκρεμότητα" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-100 text-orange-700 text-[10px] font-bold">!</span>
+          <div className="hidden group-hover:block absolute left-0 top-full mt-2 z-20 w-64 bg-white border border-gray-200 rounded shadow p-2 text-xs text-gray-700">
+            <ul className="list-disc pl-4 space-y-1">
+              <li>Εκκρεμεί η Συμφωνία Διαχείρισης Αποβλήτων</li>
+              <li>Εκκρεμεί η έκδοση ID του έργου</li>
+            </ul>
+          </div>
+        </span>
+      ) : (
+        ` (${project.agreement})`
+      )
+    ) : ''}
+  </h2>
       </div>
 
       <div className="bg-white rounded border p-4 mb-4">
@@ -1241,19 +1776,47 @@ const ProjectView = ({ project, transports, onBack }: any) => {
             <tbody>
               {project.offPlatformTransporter ? (
                 <tr><td className="border text-center p-3" colSpan={5}>Ο μεταφορέας δεν χρησιμοποιεί την πλατφόρμα</td></tr>
-              ) : completed.length === 0 ? (
-                <tr><td className="border text-center p-3" colSpan={5}>—</td></tr>
-              ) : (
-                completed.map((t: any, i: number) => (
-                  <tr key={t.id}>
+              ) : (() => {
+                // include transports that were delivered to unit but are awaiting transporter signature
+                const pendingDelivered = A(transports).filter((t:any) => (
+                  (t.projectId === project.id || (t.project && project.projectName && String(t.project).trim().toLowerCase() === String(project.projectName).trim().toLowerCase()))
+                  && t.deliveredToUnit && !t.receivedByUnit
+                ));
+                // combine received (completed) and pendingDelivered, prefer completed over pending when they refer to the same delivery
+                const combined: any[] = [];
+                const completedKeys = new Set<string>();
+                const mkKey = (x:any) => {
+                  const proj = x.projectId || x.project || '';
+                  const veh = String(x.vehicle || '').trim().toLowerCase();
+                  const dt = String(x.unitDate || x.date || '').trim();
+                  const prod = String(x.producer || '').trim().toLowerCase();
+                  return `${prod}||${proj}||${veh}||${dt}`;
+                };
+                // add completed first and record keys
+                A(completed).forEach((c:any) => { combined.push(c); completedKeys.add(mkKey(c)); });
+                // add pendingDelivered only if there isn't a completed with same key
+                pendingDelivered.forEach((p:any) => {
+                  const k = mkKey(p);
+                  if (!completedKeys.has(k)) combined.push(p);
+                });
+                if (combined.length === 0) return (<tr><td className="border text-center p-3" colSpan={5}>—</td></tr>);
+                // sort by unitDate/date desc
+                combined.sort((a:any,b:any)=> (b.unitDate || b.date || '').localeCompare(a.unitDate || a.date || ''));
+                return combined.map((t:any, i:number) => (
+                  <tr key={t.id} className={`${(t.deliveredToUnit && !t.receivedByUnit) ? 'bg-yellow-50' : ''}`}>
                     <td className="border text-center">{i + 1}</td>
-                    <td className="border text-center">{t.producer}</td>
-                    <td className="border text-center">{fmt(t.unitDate)}</td>
+                    <td className="border text-center">
+                      {t.producer}
+                      {(t.deliveredToUnit && !t.receivedByUnit) && (
+                        <span className="ml-2 inline-flex items-center text-red-700 text-xs">❗ Εκκρεμούν υπογραφές παράδοσης</span>
+                      )}
+                    </td>
+                    <td className="border text-center">{fmt(t.unitDate || t.date)}</td>
                     <td className="border text-center">{t.weight}</td>
                     <td className="border text-center">{t.ekaCategory}</td>
                   </tr>
-                ))
-              )}
+                ));
+              })()}
             </tbody>
           </table>
         </div>
@@ -1387,11 +1950,11 @@ const ProjectView = ({ project, transports, onBack }: any) => {
               <tbody>
                 {estimated.length === 0 ? (
                   <tr><td className="border text-center p-3" colSpan={2}>—</td></tr>
-                ) : (
-                  estimated.map((e: any) => (
-                    <tr key={e.code}><td className="border px-2">{e.code}</td><td className="border px-2 text-right">{e.quantity || 0}</td></tr>
-                  ))
-                )}
+                  ) : (
+                    estimated.map((e: any) => (
+                      <tr key={e.code}><td className="border px-2"><span className="whitespace-nowrap">{String(e.code).replace(/ /g, '\u00A0')}</span></td><td className="border px-2 text-right">{e.quantity || 0}</td></tr>
+                    ))
+                  )}
               </tbody>
             </table>
           </div>
@@ -1410,14 +1973,14 @@ const ProjectView = ({ project, transports, onBack }: any) => {
                   <>
                     {estimated.map((e: any) => (
                       <tr key={`actual-${e.code}`}>
-                        <td className="border px-2">{e.code}</td>
+                        <td className="border px-2"><span className="whitespace-nowrap">{String(e.code).replace(/ /g, '\u00A0')}</span></td>
                         <td className="border px-2 text-right">{Number(actualsMap[e.code] || 0).toFixed(2)}</td>
                       </tr>
                     ))}
                     {/* Include any extra codes that appeared in actuals but not in estimate */}
                     {Object.keys(actualsMap).filter(c => !A(estimated).some((e: any) => e.code === c)).map((code) => (
                       <tr key={`actual-extra-${code}`}>
-                        <td className="border px-2">{code}</td>
+                        <td className="border px-2"><span className="whitespace-nowrap">{String(code).replace(/ /g, '\u00A0')}</span></td>
                         <td className="border px-2 text-right">{Number(actualsMap[code] || 0).toFixed(2)}</td>
                       </tr>
                     ))}
@@ -1432,21 +1995,149 @@ const ProjectView = ({ project, transports, onBack }: any) => {
   );
 };
 
+// Small helper component for editing transporter in ProjectDetails
+const EditableTransporter = ({ current, offPlatform, options = [], onSave }: any) => {
+  const [val, setVal] = React.useState(current || '');
+  return (
+    <div className="flex items-center gap-2">
+      <select className="border p-1" value={val} onChange={(e:any) => setVal(e.target.value)}>
+        <option value="">— Επιλογή Μεταφορέα —</option>
+        {options.map((o: string) => (<option key={o} value={o}>{o}</option>))}
+      </select>
+      <button className="px-2 py-1 rounded bg-blue-600 text-white text-sm" onClick={() => onSave(val)}>Αποθήκευση</button>
+      {offPlatform && <div className="text-xs text-gray-500">(Αλλαγή από εκτός πλατφόρμας σε εντός πλατφόρμας)</div>}
+    </div>
+  );
+};
+
  
 
 /******** producer ********/
 const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRejectTransport, onOpenProject, onRequestTransfer, onCancelRequest, notifications, onJump, deepLink, onClearTransNew, onClearProjectsNew }: any) => {
-  const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
+  const [filter, setFilter] = useState({ producer: '', project: '', debtor: '', transporter: '', vehicle: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [tab, setTab] = useState('projects');
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const subscriptionRef = React.useRef<any>(null);
+  React.useEffect(() => {
+    try {
+      if (tab === 'subscription' && subscriptionRef.current) {
+        subscriptionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } catch {}
+  }, [tab]);
   const [subTab, setSubTab] = useState('active');
   const [projSubTab, setProjSubTab] = useState<'active' | 'completed'>('active');
   const [showProjectFilters, setShowProjectFilters] = useState(false);
   const [showTransferFilters, setShowTransferFilters] = useState(false);
   const [reqSubTab, setReqSubTab] = useState<'all' | 'transfers' | 'bins'>('all');
-  const myProducer = 'Παραγωγός Α';
+  const DEFAULT_PRODUCER_NAME = 'Παραγωγός Α';
+  const [myProducer, setMyProducer] = useState<string>(DEFAULT_PRODUCER_NAME);
+  const [prevProfileKey, setPrevProfileKey] = useState<string | null>(null);
+  // Producer profile (editable, persisted per-producer)
+  const [profileForm, setProfileForm] = useState<any>({
+    contractorName: '',
+    contractorEmail: '',
+    contractorPhone: '',
+    contractorPostalAddress: '',
+    contractorFax: '',
+    contractorRegistryNumber: '',
+    contractorID: '',
+    contractorTechDirectorName: '',
+    contractorVAT: '',
+  });
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>('basic');
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  React.useEffect(() => {
+    try {
+      // Attempt to load profile from default key first, then fall back to any existing profile key
+      let defaultKey = `iwm_producer_profile_${(DEFAULT_PRODUCER_NAME||'').replace(/\s+/g,'_')}`;
+      let raw = localStorage.getItem(defaultKey);
+      let loaded: any = null;
+      let foundKey: string | null = null;
+      if (raw) {
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj === 'object') {
+            loaded = obj;
+            foundKey = defaultKey;
+          }
+        } catch {}
+      }
+      if (!loaded) {
+        // scan for any existing producer profile key
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i) || '';
+          if (k.startsWith('iwm_producer_profile_')) {
+            try {
+              const r = localStorage.getItem(k);
+              if (!r) continue;
+              const obj = JSON.parse(r);
+              if (obj && typeof obj === 'object') {
+                loaded = obj;
+                foundKey = k;
+                break;
+              }
+            } catch {}
+          }
+        }
+      }
+      if (loaded) {
+        setProfileForm(loaded);
+        if (loaded.contractorName) setMyProducer(loaded.contractorName);
+        setPrevProfileKey(foundKey);
+        try {
+          const namePart = (foundKey || '').replace('iwm_producer_profile_', '');
+          const subKey = `iwm_producer_subscription_${namePart}`;
+          const v = localStorage.getItem(subKey);
+          if (v === 'premium' || v === 'basic' || v === 'free') setSubscriptionPlan(v === 'free' ? 'basic' : v);
+          else if (v === '1') setSubscriptionPlan('premium');
+          else setSubscriptionPlan('basic');
+        } catch {}
+      } else {
+        setPrevProfileKey(defaultKey);
+        try {
+          const namePart = (DEFAULT_PRODUCER_NAME||'').replace(/\s+/g,'_');
+          const subKey = `iwm_producer_subscription_${namePart}`;
+          const v = localStorage.getItem(subKey);
+          if (v === 'premium' || v === 'basic' || v === 'free') setSubscriptionPlan(v === 'free' ? 'basic' : v);
+          else if (v === '1') setSubscriptionPlan('premium');
+          else setSubscriptionPlan('basic');
+        } catch {}
+      }
+    } catch {}
+  }, []);
+
+  // (Removed invalid useEffect with JSX for subscription tab)
+  const saveProfile = () => {
+    try {
+      const nameForKey = (profileForm.contractorName || myProducer || DEFAULT_PRODUCER_NAME).replace(/\s+/g,'_');
+      const newKey = `iwm_producer_profile_${nameForKey}`;
+      localStorage.setItem(newKey, JSON.stringify(profileForm || {}));
+      // remove previous key if it differs
+      try {
+        if (prevProfileKey && prevProfileKey !== newKey) localStorage.removeItem(prevProfileKey);
+      } catch {}
+      setPrevProfileKey(newKey);
+      if (profileForm.contractorName) setMyProducer(profileForm.contractorName);
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2000);
+    } catch {}
+  };
+  const resetProfile = () => {
+    try {
+      if (prevProfileKey) localStorage.removeItem(prevProfileKey);
+    } catch {}
+    setProfileForm({ contractorName: '', contractorEmail: '', contractorPhone: '', contractorPostalAddress: '', contractorFax: '', contractorRegistryNumber: '', contractorID: '', contractorTechDirectorName: '', contractorVAT: '' });
+    setMyProducer(DEFAULT_PRODUCER_NAME);
+    // reset prev key to default
+    try { setPrevProfileKey(`iwm_producer_profile_${(DEFAULT_PRODUCER_NAME||'').replace(/\s+/g,'_')}`); } catch {}
+    setProfileSaved(true);
+    setTimeout(() => setProfileSaved(false), 1200);
+  };
   const myTrans = A(transports).filter((t: any) => t.producer === myProducer);
   // apply page-level filters (producer is fixed to this producer)
   const filteredTransports = applyTransportFilter(transports, projects, filter, myProducer);
@@ -1460,18 +2151,38 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
   const [ntProjectId, setNtProjectId] = useState('');
   const [ntForm, setNtForm] = useState({ address: '', transporter: '', unit: '', vehicle: '' });
   const [pForm, setPForm] = useState(() => ({
-    projectName: '', address: '', start: today(), end: today(), unit: UNITS[0], transporter: TRANSPORTERS[0],
+    projectName: '',
+    
+    // detailed address fields
+    addressStreet: '', addressCity: '', addressPostalCode: '', addressProvince: '', addressLocation: '', addressPlanSheetNumber: '', addressParcelNumber: '', addressOtherNotes: '',
+    // owners
+    ownerName: '', ownerEmail: '', ownerPhone: '', ownerPostalAddress: '',
+    // contractor
+    contractorName: '', contractorEmail: '', contractorPhone: '', contractorPostalAddress: '', contractorFax: '', contractorRegistryNumber: '', contractorID: '', contractorTechDirectorName: '', contractorVAT: '',
+    // collective/system
+    collectiveSystem: 'ΟΑΚ',
+    // supervising engineer
+    supervisorName: '', supervisorRegistryNumber: '',
+    // project type / size (checkboxes & details)
+    typeNewConstruction: false, typeExtension: false, typeConversion: false, typeRenovation: false, typeDemolition: false, typeOther: '', sizeDetails: '',
+    start: today(), end: today(), unit: UNITS[0], transporter: TRANSPORTERS[0],
     // allow choosing a transporter outside the platform as a manual entry
     transporterMode: 'platform' as 'platform' | 'manual',
     otherTransporter: '',
-    collectiveSystem: 'ΟΑΚ',
-    managerName: '', managerPhone: '', managerEmail: '',
+    // managerName/phone/email removed per requirements
     wasteLines: EKA.map(e => ({ code: e.code, description: e.description, quantity: '' })),
   }));
   const totalEstimated = sumWaste(pForm.wasteLines);
 
+  // Enforce off-platform transporter when Basic plan is selected and Add New modal is open
+  React.useEffect(() => {
+    if (showNew && subscriptionPlan === 'basic' && pForm.transporterMode !== 'manual') {
+      setPForm((prev: any) => ({ ...prev, transporterMode: 'manual' }));
+    }
+  }, [showNew, subscriptionPlan]);
+
   const submitNew = () => {
-    if (!pForm.projectName || !pForm.address) return;
+    if (!pForm.projectName || !pForm.addressStreet) return;
     // resolve transporter based on mode; when manual, require a name and mark off-platform
     let finalTransporter = pForm.transporter;
     let offPlatformTransporter = false;
@@ -1481,16 +2192,43 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
       finalTransporter = name;
       offPlatformTransporter = true;
     }
-    const { transporterMode, otherTransporter, ...rest } = pForm as any;
-    onAddProject({ id: gid(), producer: myProducer, ...rest, transporter: finalTransporter, offPlatformTransporter, estimated: totalEstimated, agreement: 'Σε εκκρεμότητα', agreementDate: null, isNew: true });
+  const { transporterMode, otherTransporter, ...rest } = pForm as any;
+  const composedAddress = [pForm.addressStreet, pForm.addressLocation || pForm.addressCity, pForm.addressPostalCode, pForm.addressProvince].filter(Boolean).join(', ');
+    // Agreement requirement: projects with estimated total < 12 (tn) do not require an agreement
+    const agreementRequired = (totalEstimated || 0) >= 12;
+    // Do not accept a manual agreement number from the Add New Project form anymore.
+    // If an agreement is required, mark it as pending; otherwise store '-'.
+    const agreementValue = agreementRequired ? 'Σε εκκρεμότητα' : '-';
+    onAddProject({ id: gid(), producer: myProducer, ...rest, address: composedAddress, transporter: finalTransporter, offPlatformTransporter, estimated: totalEstimated, agreement: agreementValue, agreementDate: null, isNew: true,
+      // fill contractor fields from producer profile when available
+      contractorName: profileForm.contractorName || rest.contractorName || '',
+      contractorEmail: profileForm.contractorEmail || rest.contractorEmail || '',
+      contractorPhone: profileForm.contractorPhone || rest.contractorPhone || '',
+      contractorPostalAddress: profileForm.contractorPostalAddress || rest.contractorPostalAddress || '',
+      contractorFax: profileForm.contractorFax || rest.contractorFax || '',
+      contractorRegistryNumber: profileForm.contractorRegistryNumber || rest.contractorRegistryNumber || '',
+      contractorID: profileForm.contractorID || rest.contractorID || '',
+      contractorTechDirectorName: profileForm.contractorTechDirectorName || rest.contractorTechDirectorName || '',
+      contractorVAT: profileForm.contractorVAT || rest.contractorVAT || ''
+    });
   setShowNew(false);
-  setPForm({ ...pForm, projectName: '', address: '', start: today(), end: today(), transporterMode: 'platform', otherTransporter: '', collectiveSystem: 'ΟΑΚ', managerName: '', managerPhone: '', managerEmail: '', wasteLines: EKA.map(e => ({ code: e.code, description: e.description, quantity: '' })) });
+    setPForm({ ...pForm,
+    projectName: '', addressStreet: '', addressCity: '', addressPostalCode: '', addressProvince: '', addressLocation: '', addressPlanSheetNumber: '', addressParcelNumber: '', addressOtherNotes: '',
+    ownerName: '', ownerEmail: '', ownerPhone: '', ownerPostalAddress: '',
+    // prefill contractor fields from profile so new projects pick them up automatically
+    contractorName: profileForm.contractorName || '', contractorEmail: profileForm.contractorEmail || '', contractorPhone: profileForm.contractorPhone || '', contractorPostalAddress: profileForm.contractorPostalAddress || '', contractorFax: profileForm.contractorFax || '', contractorRegistryNumber: profileForm.contractorRegistryNumber || '', contractorID: profileForm.contractorID || '', contractorTechDirectorName: profileForm.contractorTechDirectorName || '', contractorVAT: profileForm.contractorVAT || '',
+    collectiveSystem: 'ΟΑΚ', supervisorName: '', supervisorRegistryNumber: '',
+    typeNewConstruction: false, typeExtension: false, typeConversion: false, typeRenovation: false, typeDemolition: false, typeOther: '', sizeDetails: '',
+    start: today(), end: today(), transporterMode: 'platform', otherTransporter: '', wasteLines: EKA.map(e => ({ code: e.code, description: e.description, quantity: '' }))
+  });
   };
 
   const tabs = [
     { key: 'projects', label: 'Έργα', count: A(projects).filter((p:any)=> !!p.isNew).length },
     { key: 'transfers', label: 'Μεταφορές', count: A(transports).filter((t:any)=> !!t.isNew).length },
     { key: 'reports', label: 'Αναφορές', count: 0 },
+    { key: 'profile', label: 'Προφίλ' },
+    { key: 'subscription', label: 'Συνδρομή' },
   ];
 
   // react to deep link: set tab or open project
@@ -1514,7 +2252,8 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             <button aria-label="Μενού" title="Μενού" onClick={() => setMenuOpen(v => !v)} className="px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200">☰</button>
             {menuOpen && (
               <div className="absolute right-0 mt-2 w-44 bg-white border rounded shadow-lg z-20">
-                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); alert('Προφίλ'); }}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('profile'); }}>Προφίλ</button>
+                <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('subscription'); }}>Συνδρομή</button>
                 <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={() => { setMenuOpen(false); setTab('requests'); }}>Αιτήματα</button>
                 <button className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600" onClick={() => { setMenuOpen(false); alert('Αποσύνδεση'); }}>Αποσύνδεση</button>
               </div>
@@ -1522,9 +2261,15 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
           </div>
         </div>
       </div>
+      
 
       {tab !== 'requests' && (
-  <TabBar tabs={tabs} active={tab} onChange={(k: string) => { const key = typeof k === 'string' ? k : 'aitimata'; if (key==='transfers') { onClearTransNew && onClearTransNew(); } if (key==='projects') { onClearProjectsNew && onClearProjectsNew(); } setTab(key); }} />
+        <TabBar tabs={tabs} active={tab} onChange={(k: string) => {
+          const key = typeof k === 'string' ? k : 'aitimata';
+          if (key === 'transfers') { onClearTransNew && onClearTransNew(); }
+          if (key === 'projects') { onClearProjectsNew && onClearProjectsNew(); }
+          setTab(key);
+        }} />
       )}
       {tab === 'requests' && (
         <div className="mb-3">
@@ -1538,6 +2283,42 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
       )}
       {false && tab === 'transfers' && (
         <FilterBar producers={uniqueProducers(projects)} projects={projectsByProducer(projects, myProducer)} value={filter} onChange={setFilter} showProject={true} showProducer={false} />
+      )}
+
+      {tab === 'subscription' && (
+        <div className="flex flex-col items-center justify-center min-h-[300px]">
+          <h2 className="text-xl font-bold mb-6">Επιλογή Πακέτου Συνδρομής</h2>
+          <div className="w-full max-w-2xl mb-4 text-center text-sm text-gray-600">Επίλεξε ένα πακέτο παρακάτω</div>
+          <div className="mt-8 text-gray-600 w-full max-w-2xl">
+            <div className="mb-3">Επιλεγμένο πακέτο: <span className="font-bold">{subscriptionPlan === 'premium' ? 'Premium' : 'Basic'}</span></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-stretch">
+              <div className={`border rounded p-4 cursor-pointer flex flex-col justify-between h-full ${subscriptionPlan === 'basic' ? 'ring-2 ring-blue-500 shadow-sm' : 'hover:shadow-md'} bg-green-50`} onClick={() => { setSubscriptionPlan('basic'); try { localStorage.setItem(`iwm_producer_subscription_${myProducer.replace(/\s/g,'_')}`, 'basic'); } catch {} }}>
+                <div className="flex flex-col items-center text-center">
+                  <div className="text-lg font-semibold">Basic</div>
+                  <div className="text-sm text-gray-700 mt-4">Ιδανικό για βασική χρήση και μικρές επιχειρήσεις.</div>
+                </div>
+                <ul className="mt-5 text-sm text-gray-700 list-disc list-inside">
+                  <li>Πλήρης πρόσβαση στις βασικές λειτουργίες</li>
+                  <li>Στατικές αναφορές με εξαγωγή CSV</li>
+                  <li>Βασική αναφορά ανά έργο και περίοδο</li>
+                </ul>
+                <div className="mt-4 text-sm font-semibold text-indigo-700 text-center">ΔΩΡΕΑΝ</div>
+              </div>
+              <div className={`border rounded p-4 cursor-pointer flex flex-col justify-between h-full ${subscriptionPlan === 'premium' ? 'ring-2 ring-yellow-400 shadow-sm' : 'hover:shadow-md'} bg-yellow-50`} onClick={() => { setSubscriptionPlan('premium'); try { localStorage.setItem(`iwm_producer_subscription_${myProducer.replace(/\s/g,'_')}`, 'premium'); } catch {} }}>
+                <div className="flex flex-col items-center text-center">
+                  <div className="text-lg font-semibold">Premium</div>
+                  <div className="text-sm text-gray-700 mt-4">Για επιχειρήσεις που χρειάζονται προχωρημένα reports και αυτοματισμούς.</div>
+                </div>
+                <ul className="mt-5 text-sm text-gray-700 list-disc list-inside">
+                  <li>online μεταφορές, online έντυπα αναγνώρισης και παρακολούθησης</li>
+                  <li>χρήση εργαλείων και εντολών</li>
+                  <li>Προτεραιότητα υποστήριξης και οδηγίες ενσωμάτωσης</li>
+                </ul>
+                <div className="mt-4 text-sm font-semibold text-indigo-700 text-center">€50/μήνα</div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {exportOpen && (() => {
         // local component state shim: we need a piece of state inside the Modal; use a ref-like pattern via closure variables is insufficient in React,
@@ -1772,6 +2553,65 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             </div>
           );
         })()
+
+      )}
+
+      {tab === 'profile' && (
+        <div className="bg-white border rounded p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-lg font-semibold">Προφίλ Παραγωγού</div>
+            <div className="text-sm text-gray-600">Παραγωγός</div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <label className="col-span-2">Εργολήπτης / Εταιρεία
+              <input className="border p-1 w-full" value={profileForm.contractorName} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorName: e.target.value }))} />
+            </label>
+
+            <label>Ηλ. Διεύθυνση
+              <input className="border p-1 w-full" value={profileForm.contractorEmail} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorEmail: e.target.value }))} />
+            </label>
+
+            <label>Τηλ.
+              <input className="border p-1 w-full" value={profileForm.contractorPhone} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorPhone: e.target.value }))} />
+            </label>
+
+            <label className="col-span-2">Ταχ. Διεύθυνση
+              <input className="border p-1 w-full" value={profileForm.contractorPostalAddress} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorPostalAddress: e.target.value }))} />
+            </label>
+
+            <label>Τηλεομοιότυπο
+              <input className="border p-1 w-full" value={profileForm.contractorFax} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorFax: e.target.value }))} />
+            </label>
+
+            <label>Αρ. Μητρώου
+              <input className="border p-1 w-full" value={profileForm.contractorRegistryNumber} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorRegistryNumber: e.target.value }))} />
+            </label>
+
+            <label>Αρ. Ταυτότητας
+              <input className="border p-1 w-full" value={profileForm.contractorID} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorID: e.target.value }))} />
+            </label>
+
+            <label className="col-span-2">Ονοματεπώνυμο Τεχνικού Διευθυντή
+              <input className="border p-1 w-full" value={profileForm.contractorTechDirectorName} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorTechDirectorName: e.target.value }))} />
+            </label>
+
+            <label>Αρ. ΦΠΑ
+              <input className="border p-1 w-full" value={profileForm.contractorVAT} onChange={(e:any)=> setProfileForm((f:any)=> ({ ...f, contractorVAT: e.target.value }))} />
+            </label>
+
+            <div className="col-span-2 flex items-center gap-3 justify-end">
+              <button className="px-3 py-2 rounded bg-gray-200" onClick={resetProfile}>Επαναφορά</button>
+              <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={saveProfile}>Αποθήκευση</button>
+            </div>
+          </div>
+          {profileSaved && (
+            <div className="mt-3 p-2 bg-green-50 border border-green-200 text-green-800 rounded text-sm">
+              Προφίλ αποθηκεύτηκε
+              <button className="ml-3 text-green-600 underline" onClick={() => setProfileSaved(false)}>Κλείσιμο</button>
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'requests' && (
@@ -1864,7 +2704,24 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             </div>
           )}
           <div className="flex justify-end mb-2">
-            <Btn className="bg-green-600 text-white" onClick={() => setShowNew(true)}>+ Νέο Έργο</Btn>
+            <Btn className="bg-green-600 text-white" onClick={() => {
+              // prefill contractor fields from profile before opening the modal
+              setPForm((prev:any) => ({
+                ...prev,
+                contractorName: profileForm.contractorName || '',
+                contractorEmail: profileForm.contractorEmail || '',
+                contractorPhone: profileForm.contractorPhone || '',
+                contractorPostalAddress: profileForm.contractorPostalAddress || '',
+                contractorFax: profileForm.contractorFax || '',
+                contractorRegistryNumber: profileForm.contractorRegistryNumber || '',
+                contractorID: profileForm.contractorID || '',
+                contractorTechDirectorName: profileForm.contractorTechDirectorName || '',
+                contractorVAT: profileForm.contractorVAT || '',
+                // if producer is on Basic plan, force manual (off-platform) transporter selection
+                transporterMode: subscriptionPlan === 'basic' ? 'manual' : (prev.transporterMode || 'platform')
+              }));
+              setShowNew(true);
+            }}>+ Νέο Έργο</Btn>
           </div>
           <table className="w-full border bg-white">
             <thead className="bg-gray-100 text-sm">
@@ -1908,10 +2765,10 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                     <td className="border text-center">{p.estimated ?? sumWaste(p.wasteLines)}</td>
                     <td className="border text-center">{p.unit}</td>
                     <td className="border text-center">
-                      <span>{p.transporter}</span>
-                      {p.offPlatformTransporter && (
-                        <span className="ml-2 text-xs text-orange-700">(εκτός πλατφόρμας)</span>
-                      )}
+                      <div className="inline-flex items-center gap-2">
+                        <span className={`h-3 w-3 rounded-full ${p.offPlatformTransporter ? 'bg-gray-400' : 'bg-green-500'}`} aria-hidden />
+                        <span>{p.transporter}</span>
+                      </div>
                     </td>
                     <td className="border text-center">{p.agreement}</td>
                   </tr>
@@ -1920,21 +2777,166 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
             </tbody>
           </table>
 
+          <div className="mt-2 text-xs text-gray-600 flex items-center gap-4">
+            <div className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-green-500" aria-hidden />
+              <span>Μεταφορέας εντος πλατφόρμας</span>
+            </div>
+            <div className="inline-flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-gray-400" aria-hidden />
+              <span>Μεταφορέας εκτος πλατφόρμας</span>
+            </div>
+          </div>
+
           {showNew && (
             <Modal title="Προσθήκη Νέου Έργου" onClose={() => setShowNew(false)} onSubmit={submitNew}>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <label className="col-span-2">Όνομα Έργου
                   <input className="border p-1 w-full" value={pForm.projectName} onChange={(e: any) => setPForm({ ...pForm, projectName: e.target.value })} />
                 </label>
-                <label className="col-span-2">Διεύθυνση
-                  <input className="border p-1 w-full" value={pForm.address} onChange={(e: any) => setPForm({ ...pForm, address: e.target.value })} />
-                </label>
+                {/* Agreement number removed per request (handled by unit when required) */}
+                <div className="col-span-2 font-semibold">1. Διεύθυνση Τεχνικού/Οικοδομικού Έργου / Τεμαχίου</div>
+                <div className="col-span-2 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <label>Οδός & Αριθμός
+                      <input className="border p-1 w-full" value={pForm.addressStreet} onChange={(e: any) => setPForm({ ...pForm, addressStreet: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Πόλη/Κοινότητα
+                      <input className="border p-1 w-full" value={pForm.addressCity} onChange={(e: any) => setPForm({ ...pForm, addressCity: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Ταχυδρομικός Κώδικας
+                      <input className="border p-1 w-full" value={pForm.addressPostalCode} onChange={(e: any) => setPForm({ ...pForm, addressPostalCode: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Επαρχία
+                      <input className="border p-1 w-full" value={pForm.addressProvince} onChange={(e: any) => setPForm({ ...pForm, addressProvince: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Τοποθεσία
+                      <input className="border p-1 w-full" value={pForm.addressLocation} onChange={(e: any) => setPForm({ ...pForm, addressLocation: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Αρ. Φύλλου/Σχεδίου
+                      <input className="border p-1 w-full" value={pForm.addressPlanSheetNumber} onChange={(e: any) => setPForm({ ...pForm, addressPlanSheetNumber: e.target.value })} />
+                    </label>
+                  </div>
+                  <div>
+                    <label>Αρ. Τεμαχίου/ων
+                      <input className="border p-1 w-full" value={pForm.addressParcelNumber} onChange={(e: any) => setPForm({ ...pForm, addressParcelNumber: e.target.value })} />
+                    </label>
+                  </div>
+                  <div className="col-span-2">
+                    <label>Άλλες διευκρινίσεις
+                      <input className="border p-1 w-full" value={pForm.addressOtherNotes} onChange={(e: any) => setPForm({ ...pForm, addressOtherNotes: e.target.value })} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-2">
+                  <div className="font-semibold">2. Κύριος(οι) / Ιδιοκτήτης(ες) του έργου</div>
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                    <label>Ονοματεπώνυμο
+                      <input className="border p-1 w-full" value={pForm.ownerName} onChange={(e:any)=>setPForm({...pForm, ownerName: e.target.value})} />
+                    </label>
+                    <label>Ηλ. Διεύθυνση
+                      <input className="border p-1 w-full" value={pForm.ownerEmail} onChange={(e:any)=>setPForm({...pForm, ownerEmail: e.target.value})} />
+                    </label>
+                    <label>Τηλ.
+                      <input className="border p-1 w-full" value={pForm.ownerPhone} onChange={(e:any)=>setPForm({...pForm, ownerPhone: e.target.value})} />
+                    </label>
+                    <label>Ταχ. Διεύθυνση
+                      <input className="border p-1 w-full" value={pForm.ownerPostalAddress} onChange={(e:any)=>setPForm({...pForm, ownerPostalAddress: e.target.value})} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-2">
+                  <div className="font-semibold">3. Εργολήπτης / Εταιρεία</div>
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                    <label>Όνομα Εργολήπτη / Εταιρείας
+                      <input className="border p-1 w-full" value={pForm.contractorName} onChange={(e:any)=>setPForm({...pForm, contractorName: e.target.value})} />
+                    </label>
+                    <label>Ηλ. Διεύθυνση
+                      <input className="border p-1 w-full" value={pForm.contractorEmail} onChange={(e:any)=>setPForm({...pForm, contractorEmail: e.target.value})} />
+                    </label>
+                    <label>Τηλ.
+                      <input className="border p-1 w-full" value={pForm.contractorPhone} onChange={(e:any)=>setPForm({...pForm, contractorPhone: e.target.value})} />
+                    </label>
+                    <label>Ταχ. Διεύθυνση
+                      <input className="border p-1 w-full" value={pForm.contractorPostalAddress} onChange={(e:any)=>setPForm({...pForm, contractorPostalAddress: e.target.value})} />
+                    </label>
+                    <label>Τηλεομοιότυπο
+                      <input className="border p-1 w-full" value={pForm.contractorFax} onChange={(e:any)=>setPForm({...pForm, contractorFax: e.target.value})} />
+                    </label>
+                    <label>Αρ. Μητρώου
+                      <input className="border p-1 w-full" value={pForm.contractorRegistryNumber} onChange={(e:any)=>setPForm({...pForm, contractorRegistryNumber: e.target.value})} />
+                    </label>
+                    <label>Αρ. Ταυτότητας
+                      <input className="border p-1 w-full" value={pForm.contractorID} onChange={(e:any)=>setPForm({...pForm, contractorID: e.target.value})} />
+                    </label>
+                    <label>Ονοματεπώνυμο Τεχνικού Διευθυντή
+                      <input className="border p-1 w-full" value={pForm.contractorTechDirectorName} onChange={(e:any)=>setPForm({...pForm, contractorTechDirectorName: e.target.value})} />
+                    </label>
+                    <label>Αρ. ΦΠΑ
+                      <input className="border p-1 w-full" value={pForm.contractorVAT} onChange={(e:any)=>setPForm({...pForm, contractorVAT: e.target.value})} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-2">
+                  <label className="font-semibold">4. Σύστημα (Συλλογικό ή Ατομικό)
+                    <select className="border p-1 w-full" value={pForm.collectiveSystem} onChange={(e:any)=>setPForm({...pForm, collectiveSystem: e.target.value})}>
+                      <option value="ΟΑΚ">ΟΑΚ</option>
+                      <option value="ΚΟΔΑ">ΚΟΔΑ</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="col-span-2 border-t pt-2">
+                  <div className="font-semibold">5. Επιβλέπων Μηχανικός</div>
+                  <div className="grid grid-cols-2 gap-3 mt-2 text-sm">
+                    <label>Ονοματεπώνυμο Μηχανικού
+                      <input className="border p-1 w-full" value={pForm.supervisorName} onChange={(e:any)=>setPForm({...pForm, supervisorName: e.target.value})} />
+                    </label>
+                    <label>Αρ. Μητρώου ΕΤΕΚ
+                      <input className="border p-1 w-full" value={pForm.supervisorRegistryNumber} onChange={(e:any)=>setPForm({...pForm, supervisorRegistryNumber: e.target.value})} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-2">
+                  <div className="font-semibold">6. Στοιχεία / Είδος Έργου (σημειώστε ότι ισχύει)</div>
+                  <div className="grid grid-cols-3 gap-2 mt-2 text-sm">
+                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={pForm.typeNewConstruction} onChange={(e:any)=>setPForm({...pForm, typeNewConstruction: e.target.checked})} /> Νέα Κατασκευή</label>
+                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={pForm.typeExtension} onChange={(e:any)=>setPForm({...pForm, typeExtension: e.target.checked})} /> Επέκταση/Προσθήκη</label>
+                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={pForm.typeConversion} onChange={(e:any)=>setPForm({...pForm, typeConversion: e.target.checked})} /> Μετατροπή/Αλλαγή χρήσης</label>
+                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={pForm.typeRenovation} onChange={(e:any)=>setPForm({...pForm, typeRenovation: e.target.checked})} /> Ανακαίνιση / Αποκατάσταση</label>
+                    <label className="inline-flex items-center gap-2"><input type="checkbox" checked={pForm.typeDemolition} onChange={(e:any)=>setPForm({...pForm, typeDemolition: e.target.checked})} /> Κατεδάφιση</label>
+                    <label className="col-span-3">Άλλο
+                      <input className="border p-1 w-full" value={pForm.typeOther} onChange={(e:any)=>setPForm({...pForm, typeOther: e.target.value})} />
+                    </label>
+                    <label className="col-span-3">Μέγεθος / Σημειώσεις (π.χ. συνολικό εμβαδόν m2, τύπος έργου)
+                      <input className="border p-1 w-full" value={pForm.sizeDetails} onChange={(e:any)=>setPForm({...pForm, sizeDetails: e.target.value})} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="col-span-2 border-t pt-2 font-semibold">7. Περίοδος εκτέλεσης του έργου</div>
                 <label>Έναρξη
                   <input type="date" className="border p-1 w-full" value={pForm.start} onChange={(e: any) => setPForm({ ...pForm, start: e.target.value })} />
                 </label>
                 <label>Λήξη
                   <input type="date" className="border p-1 w-full" value={pForm.end} onChange={(e: any) => setPForm({ ...pForm, end: e.target.value })} />
                 </label>
+
+                <div className="col-span-2 border-t pt-2 font-semibold">8. Συνεργάτες</div>
                 <label>Μονάδα
                   <select className="border p-1 w-full" value={pForm.unit} onChange={(e: any) => setPForm({ ...pForm, unit: e.target.value })}>
                     {UNITS.map((u: string) => (<option key={u} value={u}>{u}</option>))}
@@ -1944,7 +2946,7 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                   <label className="block mb-1">Μεταφορέας</label>
                   <div className="flex items-center gap-4 mb-2 text-sm">
                     <label className="inline-flex items-center gap-1">
-                      <input type="radio" name="p_trans_mode" value="platform" checked={pForm.transporterMode === 'platform'} onChange={() => setPForm({ ...pForm, transporterMode: 'platform' })} />
+                      <input type="radio" name="p_trans_mode" value="platform" disabled={subscriptionPlan === 'basic'} checked={pForm.transporterMode === 'platform'} onChange={() => setPForm({ ...pForm, transporterMode: 'platform' })} />
                       <span>Στην πλατφόρμα</span>
                     </label>
                     <label className="inline-flex items-center gap-1">
@@ -1952,6 +2954,9 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                       <span>Εκτός πλατφόρμας</span>
                     </label>
                   </div>
+                  {subscriptionPlan === 'basic' && (
+                    <div className="text-xs text-gray-500 mb-2">Στο Basic πακέτο οι μεταφορείς εντός πλατφόρμας δεν είναι διαθέσιμοι — επιλέχθηκε «Εκτός πλατφόρμας».</div>
+                  )}
                   {pForm.transporterMode === 'platform' ? (
                     <select className="border p-1 w-full" value={pForm.transporter} onChange={(e: any) => setPForm({ ...pForm, transporter: e.target.value })}>
                       {TRANSPORTERS.map((t: string) => (<option key={t} value={t}>{t}</option>))}
@@ -1960,41 +2965,44 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
                     <input className="border p-1 w-full" placeholder="Όνομα μεταφορέα (εκτός πλατφόρμας)" value={pForm.otherTransporter} onChange={(e: any) => setPForm({ ...pForm, otherTransporter: e.target.value })} />
                   )}
                 </div>
-                <label>Συλλογικό Σύστημα
-                  <select className="border p-1 w-full" value={pForm.collectiveSystem} onChange={(e: any) => setPForm({ ...pForm, collectiveSystem: e.target.value })}>
-                    <option value="ΟΑΚ">ΟΑΚ</option>
-                    <option value="ΚΟΔΑ">ΚΟΔΑ</option>
-                  </select>
-                </label>
-                <label className="col-span-2">Υπεύθυνος έργου
-                  <input className="border p-1 w-full" value={pForm.managerName} onChange={(e: any) => setPForm({ ...pForm, managerName: e.target.value })} />
-                </label>
-                <label>Τηλέφωνο
-                  <input className="border p-1 w-full" value={pForm.managerPhone} onChange={(e: any) => setPForm({ ...pForm, managerPhone: e.target.value })} />
-                </label>
-                <label>e-mail
-                  <input className="border p-1 w-full" value={pForm.managerEmail} onChange={(e: any) => setPForm({ ...pForm, managerEmail: e.target.value })} />
-                </label>
-                <div className="col-span-2 font-semibold mt-2">Αναλυτικές Ποσότητες Αποβλήτων (tn)</div>
+
+                <div className="col-span-2 font-semibold mt-2">9. Αναλυτικές Ποσότητες Αποβλήτων (tn)</div>
                 <table className="col-span-2 w-full border text-xs">
                   <thead className="bg-gray-100">
-                    <tr><th className="border px-2">ΕΚΑ</th><th className="border px-2">Περιγραφή</th><th className="border px-2">Ποσότητα</th></tr>
+                    <tr><th className="border px-2 w-44">ΕΚΑ</th><th className="border px-2">Περιγραφή</th><th className="border px-2">Ποσότητα</th></tr>
                   </thead>
                   <tbody>
-                    {pForm.wasteLines.map((w: any, idx: number) => (
-                      <tr key={w.code}>
-                        <td className="border px-2">{w.code}</td>
-                        <td className="border px-2">{w.description}</td>
-                        <td className="border px-2">
-                          <input
-                            type="number"
-                            className="border p-1 w-full"
-                            value={w.quantity}
-                            onChange={(e: any) => { const v = [...pForm.wasteLines]; v[idx] = { ...v[idx], quantity: e.target.value }; setPForm({ ...pForm, wasteLines: v }); }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {A(pForm.wasteLines).filter((w: any) => {
+                      const code = String(w.code || w.ekaCategory || '').replace(/\s+/g, '');
+                      return !EXCLUDED_EKA.has(code);
+                    }).map((w: any) => {
+                          // find original index in the full wasteLines array so updates map correctly
+                          const origIdx = (pForm.wasteLines || []).findIndex((x: any) => String((x.code || x.ekaCategory) || '').replace(/\s+/g, '') === String((w.code || w.ekaCategory) || '').replace(/\s+/g, ''));
+                          return (
+                          <tr key={w.code}>
+                            <td className="border px-2 w-44 whitespace-nowrap">{w.code}</td>
+                            <td className="border px-2">{w.description}</td>
+                            <td className="border px-2">
+                              <input
+                                type="number"
+                                className="border p-1 w-full"
+                                value={w.quantity}
+                                onChange={(e: any) => {
+                                  const v = [...pForm.wasteLines];
+                                  if (origIdx >= 0 && origIdx < v.length) {
+                                    v[origIdx] = { ...v[origIdx], quantity: e.target.value };
+                                    setPForm({ ...pForm, wasteLines: v });
+                                  } else {
+                                    // fallback: find by code and update first match
+                                    const f = v.findIndex((x:any)=> String((x.code||x.ekaCategory)||'').replace(/\s+/g,'') === String((w.code||w.ekaCategory)||'').replace(/\s+/g,''));
+                                    if (f >= 0) { v[f] = { ...v[f], quantity: e.target.value }; setPForm({ ...pForm, wasteLines: v }); }
+                                  }
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                    })}
                   </tbody>
                 </table>
                 <div className="col-span-2 text-right text-sm mt-1">Σύνολο Εκτιμώμενο: <span className="font-semibold">{totalEstimated}</span> tn</div>
@@ -2005,6 +3013,8 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
           
         </>
       )}
+
+      
 
       {/* Global modal for creating a new transfer request by Producer (available from any tab) */}
       {newTransferOpen && (
@@ -2054,7 +3064,8 @@ const Producer = ({ projects, transports, onAddProject, onApproveTransport, onRe
 
 /******** transporter (web) ********/
 const Transporter = ({ projects, transports, onAddTransport, notifications, onJump, onAcceptRequest, onRejectRequest, addNotif, deepLink, onAddProject, onClearTransNew, onClearProjectsNew }: any) => {
-  const [tab, setTab] = useState('transfers');
+  // Default to 'projects' tab
+  const [tab, setTab] = useState('projects');
   const [show, setShow] = useState(false);
   const opts = useMemo(() => plates(), []);
   const [form, setForm] = useState({ producer: '', project: '', address: '', unit: '', vehicle: '', date: today(), time: '08:00', viaStation: false });
@@ -2147,7 +3158,8 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
     const msDay = 24 * 60 * 60 * 1000;
     const now = new Date();
     return A(transports)
-      .filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && t.fromProducer)
+      // Only show producer-origin requests that are bin-related (new/move/change)
+      .filter((t: any) => !t.approvedByProducer && !t.receivedByUnit && t.fromProducer && ['new-bin','move-bin','change-bin'].includes(t.requestType))
       .filter((t: any) => {
         if (!t.acceptedByTransporter) return true; // pending: always show
         const at = t.acceptedByTransporterAt ? new Date(t.acceptedByTransporterAt) : null;
@@ -2160,14 +3172,60 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
   const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit);
 
   const transNotifs = A(notifications).filter((n: any) => n.target?.page === 'transporter');
-  const tProjects = A(projects).filter((p: any) => p.transporter === myTransporter || p.creatorTransporter === myTransporter);
+  // Merge global projects and transporter-local external projects
+  // External projects: support marking as completed (persisted in localStorage)
+  const tProjectsLocal = (() => {
+    try {
+      const raw = localStorage.getItem('iwm_transporter_external_projects');
+      const arr = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) {
+        const list = arr.filter((p: any) => (p.creatorTransporter === myTransporter || p.transporter === myTransporter) && !p.completed);
+        const seen = new Set();
+        return list.filter((p: any) => {
+          const k = `${p.producer}:::${p.projectName}`;
+          if (seen.has(k)) return false; seen.add(k); return true;
+        });
+      }
+    } catch {}
+    return [];
+  })();
+  // Platform projects: support marking as completed (in-memory only)
+  const [completedPlatformProjects, setCompletedPlatformProjects] = React.useState<string[]>([]);
+  // Merge platform and external projects, dedupe by producer+projectName
+  const tProjects = (() => {
+    const platform = A(projects).filter((p: any) => (p.transporter === myTransporter || p.creatorTransporter === myTransporter) && !completedPlatformProjects.includes(`${p.producer}:::${p.projectName}`));
+    const all = [...platform, ...tProjectsLocal];
+    const seen = new Set();
+    return all.filter((p: any) => {
+      const k = `${p.producer}:::${p.projectName}`;
+      if (seen.has(k)) return false; seen.add(k); return true;
+    });
+  })();
+
+  // Mark project as completed (platform or external)
+  const markProjectCompleted = (p: any) => {
+    if (p.external) {
+      try {
+        const raw = localStorage.getItem('iwm_transporter_external_projects');
+        const arr = raw ? JSON.parse(raw) : [];
+        const next = Array.isArray(arr) ? arr.map((x: any) => {
+          if (x.producer === p.producer && x.projectName === p.projectName) return { ...x, completed: true };
+          return x;
+        }) : arr;
+        localStorage.setItem('iwm_transporter_external_projects', JSON.stringify(next));
+      } catch {}
+    } else {
+      setCompletedPlatformProjects(prev => [...prev, `${p.producer}:::${p.projectName}`]);
+    }
+  };
   const [projSubTab, setProjSubTab] = useState<'iwm' | 'external'>('iwm');
   const [addExternalOpen, setAddExternalOpen] = useState(false);
   const [extForm, setExtForm] = useState({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '' });
   const tabs = [
-    { key: 'aitimata', label: 'Αιτήματα', count: A(transports).filter((t:any)=> !!t.isNew).length },
+    // 'Έργα' tab should come before 'Αιτήματα'
     { key: 'projects', label: 'Έργα', count: A(projects).filter((p:any)=> !!p.isNew).length },
-    { key: 'transfers', label: 'Έντυπα Αναγνώρισης και Παρακολούθησης', count: A(transports).filter((t:any)=> !!t.isNew).length },
+    { key: 'aitimata', label: 'Αιτήματα', count: (producerReq || []).length },
+    { key: 'transfers', label: 'Έντυπα Αναγνώρισης και Παρακολούθησης', count: A(transports).filter((t:any)=> !!t.isNew && !t.createdByTransporterMobile).length },
     { key: 'profile', label: 'Προφίλ' },
   ];
 
@@ -2282,6 +3340,114 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
             <div className="font-semibold mb-2">Αιτήματα Παραγωγών</div>
             <Table rows={producerReq} emptyText="—" showAcceptBtn />
           </div>
+        </div>
+      )}
+
+      {tab === 'subscription' && (
+        <div className="bg-white border rounded p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-lg font-semibold">Συνδρομή</div>
+            <div className="text-sm text-gray-600">Παραγωγός</div>
+          </div>
+          <div className="mb-3 p-3 bg-gradient-to-r from-gray-50 to-white border rounded">
+            <div className="text-sm text-gray-700">Επιλογή Συνδρομής για:</div>
+            <div className="text-xl font-bold">Παραγωγός</div>
+            <div className="text-sm text-gray-500">Τρέχουσα επιλογή: <span className="font-semibold">{(typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) || '—'}</span></div>
+          </div>
+          <div className="space-y-3">
+            <div className="text-sm">Επιλογή Πακέτου Συνδρομής</div>
+            <div className="text-sm text-gray-700">Επίλεξε ένα από τα πακέτα παρακάτω για τον παραγωγό.</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+              <div className={`border rounded p-4 cursor-pointer transition-shadow ${((typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) === 'basic') ? 'ring-2 ring-blue-500 shadow-sm' : 'hover:shadow-md'}`} onClick={() => {
+                const key = `iwm_subscription_transporter`;
+                try { localStorage.setItem(key, 'basic'); } catch {}
+                alert('Επιλέχθηκε Basic (τοπικά)');
+              }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-lg font-semibold">Basic</div>
+                    <div className="text-xs text-gray-600">Βασικές λειτουργίες της πλατφόρμας</div>
+                  </div>
+                  <div className="text-sm font-bold text-gray-600">ΔΩΡΕΑΝ</div>
+                </div>
+                <ul className="mt-3 text-sm text-gray-700 list-disc list-inside">
+                  <li>Πλήρης πρόσβαση στις βασικές λειτουργίες</li>
+                  <li>Στατικές αναφορές με εξαγωγή CSV</li>
+                  <li>Βασική αναφορά ανά έργο και περίοδο</li>
+                </ul>
+              </div>
+
+              <div className={`border rounded p-4 cursor-pointer transition-shadow ${((typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) === 'premium') ? 'ring-2 ring-yellow-400 shadow-sm' : 'hover:shadow-md'}`} onClick={() => {
+                const key = `iwm_subscription_transporter`;
+                try { localStorage.setItem(key, 'premium'); } catch {}
+                alert('Επιλέχθηκε Premium (τοπικά)');
+              }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-lg font-semibold">Premium</div>
+                    <div className="text-xs text-gray-600">Αναβαθμισμένα reports και επιπλέον εξαγωγές</div>
+                  </div>
+                  <div className="text-sm font-bold text-yellow-700">€50/μήνα</div>
+                </div>
+                <ul className="mt-3 text-sm text-gray-700 list-disc list-inside">
+                  <li>Προσαρμοσμένες αναφορές με προηγμένα φίλτρα</li>
+                  <li>Προγραμματισμένες (scheduled) εξαγωγές CSV/Excel</li>
+                  <li>Πρόσβαση API για αυτόματη λήψη δεδομένων</li>
+                  <li>Προτεραιότητα υποστήριξης και οδηγίες ενσωμάτωσης</li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-3">
+              <button className="px-3 py-2 rounded bg-gray-100" onClick={() => alert('Πληροφορίες: Το πακέτο Premium παρέχει πρόσθετες λειτουργίες. Επικοινωνήστε για λεπτομέρειες.')}>Περισσότερα</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'subscription' && (
+        <div className="bg-white border rounded p-6">
+          <div className="text-lg font-semibold mb-3">Συνδρομή — Επιλογή Πακέτου</div>
+          <div className="mb-4">Επίλεξε ένα από τα δύο παρακάτω πακέτα. Η επιλογή θα αποθηκευτεί και θα χρησιμοποιηθεί για τις λειτουργίες του παραγωγού.</div>
+          <div className="flex gap-4">
+            <button className={`flex-1 px-4 py-6 rounded border text-left ${((typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) === 'basic') ? 'bg-blue-50 border-blue-400' : 'bg-white hover:shadow'}`} onClick={() => {
+              const key = `iwm_subscription_transporter`;
+              try { localStorage.setItem(key, 'basic'); } catch {}
+              alert('Επιλέχθηκε Basic — αποθηκεύτηκε (τοπικά).');
+            }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-semibold">Basic</div>
+                  <div className="text-sm text-gray-600 mt-2">Βασικές λειτουργίες · Εξαγωγές CSV</div>
+                </div>
+                <div className="text-sm font-bold text-gray-600">ΔΩΡΕΑΝ</div>
+              </div>
+              <ul className="mt-3 text-sm text-gray-700 list-disc list-inside">
+                <li>Βασικές αναφορές ανά έργο</li>
+                <li>Εξαγωγές CSV για ανάλυση offline</li>
+                <li>Κατάλληλο για δοκιμή ή μικρές ανάγκες</li>
+              </ul>
+            </button>
+
+            <button className={`flex-1 px-4 py-6 rounded border text-left ${((typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) === 'premium') ? 'bg-yellow-50 border-yellow-400' : 'bg-white hover:shadow'}`} onClick={() => {
+              const key = `iwm_subscription_transporter`;
+              try { localStorage.setItem(key, 'premium'); } catch {}
+              alert('Επιλέχθηκε Premium — αποθηκεύτηκε (τοπικά).');
+            }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-semibold">Premium</div>
+                  <div className="text-sm text-gray-600 mt-2">Αναβαθμισμένα reports · Προγραμματισμένες εξαγωγές · API</div>
+                </div>
+                <div className="text-sm font-bold text-yellow-700">€50/μήνα</div>
+              </div>
+              <ul className="mt-3 text-sm text-gray-700 list-disc list-inside">
+                <li>Προγραμματισμένες εξαγωγές (π.χ. ημερήσιες/εβδομαδιαίες)</li>
+                <li>API access για αυτόματη ενσωμάτωση σε ERP/BI</li>
+                <li>Δημιουργία προσαρμοσμένων αναφορών κατά παραγγελία</li>
+              </ul>
+            </button>
+          </div>
+          <div className="mt-4 text-sm text-gray-700">Τρέχουσα επιλογή: <span className="font-semibold">{(typeof window !== 'undefined' && localStorage.getItem('iwm_subscription_transporter')) || '—'}</span></div>
         </div>
       )}
 
@@ -2457,113 +3623,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
       )}
 
       {tab === 'projects' && (
-        (() => {
-          const all = A(tProjects);
-          const iwms = all.filter((p: any) => !p.external);
-          const others = all.filter((p: any) => !!p.external);
-          const list = projSubTab === 'iwm' ? iwms : others;
-          return (
-            <div className="bg-white border rounded p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">Έργα που σας έχουν ορίσει ως μεταφορέα</div>
-                <div className="text-xs text-gray-600">Σύνολο: <span className="font-medium">{all.length}</span></div>
-              </div>
-              <div className="inline-flex bg-gray-100 p-1 rounded-full">
-                <button onClick={() => setProjSubTab('iwm')} className={`px-3 py-1.5 rounded-full text-sm ${projSubTab === 'iwm' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα IWM</button>
-                <button onClick={() => setProjSubTab('external')} className={`px-3 py-1.5 rounded-full text-sm ${projSubTab === 'external' ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}>Έργα εκτός IWM</button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">Σύνολο: <span className="font-medium">{list.length}</span></div>
-                {projSubTab === 'external' && (
-                  <button className="px-3 py-2 rounded bg-blue-600 text-white text-sm" onClick={() => setAddExternalOpen(true)}>+ Προσθήκη Έργου (εκτός IWM)</button>
-                )}
-              </div>
-              <table className="w-full border bg-white text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border px-2">Α/Α</th>
-                    <th className="border px-2">Παραγωγός</th>
-                    <th className="border px-2">Έργο</th>
-                    <th className="border px-2">Διεύθυνση</th>
-                    <th className="border px-2">Μονάδα</th>
-                    <th className="border px-2">Υπεύθυνος</th>
-                    <th className="border px-2">Τηλέφωνο</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.length === 0 ? (
-                    <tr><td className="border text-center p-3" colSpan={7}>—</td></tr>
-                  ) : (
-                    list.map((p: any, i: number) => (
-                      <tr key={p.id}>
-                        <td className="border text-center">{i + 1}</td>
-                        <td className="border text-center">{p.producer}</td>
-                        <td className="border text-center">{p.projectName}</td>
-                        <td className="border text-center">{p.address || '-'}</td>
-                        <td className="border text-center">{p.unit || '-'}</td>
-                        <td className="border text-center">{p.managerName || '-'}</td>
-                        <td className="border text-center">{p.managerPhone || '-'}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-
-              {addExternalOpen && (
-                <Modal title="Προσθήκη Έργου (εκτός IWM)" onClose={() => setAddExternalOpen(false)} onSubmit={() => {
-                  if (!extForm.producer || !extForm.projectName) return alert('Συμπλήρωσε Παραγωγό και Όνομα Έργου');
-                  if (!extForm.unit) return alert('Συμπλήρωσε Μονάδα');
-                  const obj: any = {
-                    id: gid(),
-                    producer: extForm.producer,
-                    projectName: extForm.projectName,
-                    address: extForm.address || '-',
-                    unit: extForm.unit || '',
-                    managerName: extForm.managerName || '',
-                    managerPhone: extForm.managerPhone || '',
-                    transporter: myTransporter,
-                    offPlatformTransporter: false,
-                    creatorTransporter: myTransporter,
-                    external: true,
-                    offline: true,
-                    isNew: true,
-                    start: today(),
-                    end: today(),
-                  };
-                  onAddProject && onAddProject(obj);
-                  setAddExternalOpen(false);
-                  setExtForm({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '' });
-                  setProjSubTab('external');
-                }}>
-                  <label className="block text-sm">Παραγωγός
-                    <input className="border p-1 w-full" placeholder="Όνομα Παραγωγού" value={extForm.producer} onChange={(e: any) => setExtForm({ ...extForm, producer: e.target.value })} />
-                  </label>
-                  <label className="block text-sm">Όνομα Έργου
-                    <input className="border p-1 w-full" placeholder="Π.χ. Ανακαίνιση" value={extForm.projectName} onChange={(e: any) => setExtForm({ ...extForm, projectName: e.target.value })} />
-                  </label>
-                  <label className="block text-sm">Διεύθυνση
-                    <input className="border p-1 w-full" placeholder="Οδός, Αριθμός, Πόλη" value={extForm.address} onChange={(e: any) => setExtForm({ ...extForm, address: e.target.value })} />
-                  </label>
-                  <label className="block text-sm">Μονάδα
-                    <select className="border p-1 w-full" value={extForm.unit} onChange={(e: any) => setExtForm({ ...extForm, unit: e.target.value })}>
-                      <option value="">— Επιλογή Μονάδας —</option>
-                      {UNITS.map((u: string) => (<option key={u} value={u}>{u}</option>))}
-                    </select>
-                  </label>
-                  {/* Δεν ζητάμε μεταφορέα στο web modal του μεταφορέα: ο μεταφορέας είναι πάντα ο τρέχων χρήστης. */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block text-sm">Υπεύθυνος (προαιρετικό)
-                      <input className="border p-1 w-full" placeholder="Ονοματεπώνυμο" value={extForm.managerName} onChange={(e: any) => setExtForm({ ...extForm, managerName: e.target.value })} />
-                    </label>
-                    <label className="block text-sm">Τηλέφωνο (προαιρετικό)
-                      <input className="border p-1 w-full" placeholder="69xxxxxxxx" value={extForm.managerPhone} onChange={(e: any) => setExtForm({ ...extForm, managerPhone: e.target.value })} />
-                    </label>
-                  </div>
-                </Modal>
-              )}
-            </div>
-          );
-        })()
+        <TransporterProjectsTab tProjects={tProjects} />
       )}
 
       {/* Notifications tab removed from transporter web per requirements */}
@@ -2574,13 +3634,23 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
             <label className="col-span-2">Παραγωγός
               <select className="border p-1 w-full" value={form.producer} onChange={(e: any) => setForm({ ...form, producer: e.target.value, project: '', address: '', unit: '' })}>
                 <option value="">— Επιλογή Παραγωγού —</option>
-                {[...new Set(A(projects).map((p: any) => p.producer))].map((p: string) => (<option key={p} value={p}>{p}</option>))}
+                {(() => {
+                  const central = A(projects).map((p: any) => p.producer || '').filter(Boolean);
+                  const transportLocal = tProjectsLocal.map((p: any) => p.producer || '').filter(Boolean);
+                  const merged = Array.from(new Set([...central, ...transportLocal]));
+                  return merged.map((p: string) => (<option key={p} value={p}>{p}</option>));
+                })()}
               </select>
             </label>
             <label className="col-span-2">Έργο
               <select className="border p-1 w-full" value={form.project} onChange={(e: any) => setForm({ ...form, project: e.target.value })}>
                 <option value="">— Επιλογή Έργου —</option>
-                {A(projects).filter((p: any) => p.producer === form.producer).map((p: any) => (<option key={p.id} value={p.projectName}>{p.projectName}</option>))}
+                {(() => {
+                  const central = A(projects).filter((p: any) => p.producer === form.producer).map((p: any) => p.projectName);
+                  const transportLocal = tProjectsLocal.filter((p: any) => p.producer === form.producer).map((p: any) => p.projectName);
+                  const merged = Array.from(new Set([...(central || []), ...(transportLocal || [])]));
+                  return merged.map((name: string, idx: number) => (<option key={`${form.producer}:::${name}:::${idx}`} value={name}>{name}</option>));
+                })()}
               </select>
             </label>
             <label>Διεύθυνση
@@ -2672,7 +3742,7 @@ const Transporter = ({ projects, transports, onAddTransport, notifications, onJu
 };
 
 /******** unit ********/
-const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onReceive, onFinalize, notifications, onJump, onOpenProject, deepLink, onClearTransNew, onClearProjectsNew, onClearTransNewWhere }: any) => {
+const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onReceive, onFinalize, notifications, onJump, onOpenProject, deepLink, onClearTransNew, onClearProjectsNew, onClearTransNewWhere, adminOnly = false }: any) => {
   const [tab, setTab] = useState('projects');
   const [filter, setFilter] = useState({ producer: '', project: '', from: '', to: '' });
   const [exportOpen, setExportOpen] = useState(false);
@@ -2693,13 +3763,52 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
   const rejectOrder = (id: string) => setUnitOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'Απόρριψη' } : o));
   const pending = A(transports).filter((t: any) => t.approvedByProducer && !t.receivedByUnit);
   const done = A(transports).filter((t: any) => t.receivedByUnit);
-  const tabs = [
+  // Price list for admin — a simple EKA price catalog (randomized per session)
+  const [priceList, setPriceList] = useState<any[]>(() => {
+    try {
+      // try to read stored pricelist (either global map or per-unit keys)
+      const rawAll = localStorage.getItem('iwm_unit_pricelist');
+      if (rawAll) {
+        try {
+          const obj = JSON.parse(rawAll) || {};
+          // prefer any known unit entry
+          for (const u of UNITS) {
+            if (Array.isArray(obj[u])) return obj[u].map((p: any) => ({ code: String(p.code), description: (EKA.find((e:any) => String(e.code).replace(/\s+/g,'') === String(p.code).replace(/\s+/g,'')) || {}).description || '', price: (Number(p.price) || 0).toFixed(2) }));
+          }
+          // fallback to first available key
+          const keys = Object.keys(obj);
+          if (keys.length > 0 && Array.isArray(obj[keys[0]])) {
+            return obj[keys[0]].map((p: any) => ({ code: String(p.code), description: (EKA.find((e:any) => String(e.code).replace(/\s+/g,'') === String(p.code).replace(/\s+/g,'')) || {}).description || '', price: (Number(p.price) || 0).toFixed(2) }));
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      // check per-unit keys
+      for (const u of UNITS) {
+        try {
+          const rawUnit = localStorage.getItem(`iwm_unit_pricelist_${u}`);
+          if (rawUnit) {
+            const arr = JSON.parse(rawUnit || '[]') || [];
+            if (Array.isArray(arr) && arr.length > 0) return arr.map((p: any) => ({ code: String(p.code), description: (EKA.find((e:any) => String(e.code).replace(/\s+/g,'') === String(p.code).replace(/\s+/g,'')) || {}).description || '', price: (Number(p.price) || 0).toFixed(2) }));
+          }
+        } catch { /* ignore */ }
+      }
+      // fallback: create randomized list
+      return EKA.map((e: any) => ({ code: e.code, description: e.description, price: (Math.random() * (80 - 5) + 5).toFixed(2) }));
+    } catch { return []; }
+  });
+  // edit mode for pricelist
+  const [priceEditMode, setPriceEditMode] = useState(false);
+  const [editPrices, setEditPrices] = useState<Record<string, string>>({});
+
+  const tabs = adminOnly ? [
     { key: 'projects', label: 'Έργα', count: A(projects).filter((p: any) => !!p.isNew).length },
+    { key: 'pricelist', label: 'Τιμοκατάλογος' },
+    { key: 'products', label: 'Προϊόντα' },
+    { key: 'stats', label: 'Αναλύσεις & Στατιστικά' },
+  ] : [
     { key: 'weigh', label: 'Ζύγιση' },
     { key: 'transfers', label: 'Μεταφορές', count: A(transports).filter((t: any) => !!t.isNew).length },
     { key: 'slips', label: 'Δελτία Παραλαβής' },
-    { key: 'products', label: 'Προϊόντα' },
-  { key: 'stats', label: 'Αναλύσεις & Στατιστικά' },
   ];
 
   const [weighOpen, setWeighOpen] = useState(false);
@@ -2734,7 +3843,7 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
   };
   const submitWeigh = () => {
     if (!weighData.id) return;
-    onReceive && onReceive(weighData.id, parseFloat(weighData.weight || '0'), weighData.eka);
+    onReceive && onReceive(weighData.id, parseFloat(weighData.weight || '0'), weighData.eka, true);
     setWeighOpen(false);
   };
 
@@ -2774,15 +3883,40 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
       <Btn className="bg-blue-600 text-white" onClick={() => setExportOpen(true)}>Ετήσια Έκθεση</Btn>
     )}
     {tab !== 'weigh' && (
-      <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowFilters(v => !v)} title="Φίλτρα">
-        <Filter className="w-4 h-4" />
-        <span className="text-sm hidden sm:inline">Φίλτρα</span>
-      </button>
+      (tab === 'slips' && !adminOnly) ? (
+        // slips tab in web ζυγιστικό: icon-only filter button
+        <button className="p-1 rounded hover:bg-gray-100" onClick={() => setShowFilters((v: any) => !v)} title="Φίλτρα">
+          <Filter className="w-5 h-5 text-gray-700" />
+        </button>
+      ) : (
+        <button className="flex items-center gap-2 px-2 py-1 text-gray-700 hover:text-blue-700" onClick={() => setShowFilters((v: any) => !v)} title="Φίλτρα">
+          <Filter className="w-4 h-4" />
+          <span className="text-sm hidden sm:inline">Φίλτρα</span>
+        </button>
+      )
     )}
   </div>
-  {showFilters && tab !== 'weigh' && (
+  {showFilters && tab !== 'weigh' && (tab !== 'slips' || !adminOnly) && (
     <div className="mb-2">
-      <FilterBar producers={uniqueProducers(projects)} projects={projectsByProducer(projects, filter.producer)} value={filter} onChange={setFilter} showProject={true} />
+      {/* include debtor, transporter and vehicle filters for slips in web mode */}
+      <FilterBar
+        producers={uniqueProducers(projects)}
+        projects={projectsByProducer(projects, filter.producer)}
+        debtors={[...new Set((transports || []).map((t:any)=> t.debtor).filter(Boolean))]}
+  transporters={[...new Set([...(projects || []).map((p:any)=> p.transporter).filter(Boolean), ...(transports || []).map((t:any)=> t.transporter).filter(Boolean)])]}
+        plates={((projects || []).reduce((acc:any, p:any) => { if (p.transporter && p.plates) acc[p.transporter] = p.plates; return acc; }, {}) as any) || {}}
+        value={filter}
+        onChange={setFilter}
+        showProject={true}
+        showDebtor={true}
+        showTransporter={true}
+        showPlate={true}
+      />
+      {tab === 'slips' && !adminOnly && (
+        <div className="mt-2">
+          <button className="text-sm text-gray-600 hover:text-gray-900" onClick={() => { setFilter({ producer: '', project: '', from: '', to: '' }); setShowFilters(true); }}>Επαναφορά φίλτρων</button>
+        </div>
+      )}
     </div>
   )}
 
@@ -2818,8 +3952,8 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                   <tr key={p.id} className={p.isNew ? 'bg-green-50' : ''}>
                     <td className="border text-center">{i + 1}</td>
                     <td className="border text-center">{p.producer}</td>
-                    <td className="border text-center">
-                      <span className="text-blue-700 underline cursor-pointer" onClick={() => onOpenProject ? onOpenProject(p) : null}>{p.projectName}</span>
+                      <td className="border text-center">
+                      <span className="text-blue-700 underline cursor-pointer" onClick={() => onOpenProject ? onOpenProject(p) : null}>{p.projectName}{p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : ''}</span>
                     </td>
                     <td className="border text-center">{p.address}</td>
                     <td className="border text-center">{fmt(p.start)}</td>
@@ -2862,136 +3996,183 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
       )}
 
       {tab === 'transfers' && (
-        <div className="bg-white border rounded p-3">
-          {/* Subtabs for transfers */}
-          {(() => {
-            const filtered = applyTransportFilter(transports, projects, filter);
-            const openNewCount = filtered.filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit && t.isNew).length;
-            const awaitingNewCount = filtered.filter((t: any) => t.deliveredToUnit && !t.receivedByUnit && t.isNew).length;
-            const completedCount = filtered.filter((t: any) => t.receivedByUnit).length;
-            const completedNewCount = filtered.filter((t: any) => t.receivedByUnit && t.isNew).length;
-            return (
-              <div className="flex items-center gap-2 mb-3">
-                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit); setUnitTransfersSubTab('open'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'open' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                  <span className="inline-flex items-center gap-2">Ανοιχτές{openNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{openNewCount}</span>}</span>
-                </button>
-                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.deliveredToUnit && !t.receivedByUnit); setUnitTransfersSubTab('awaiting'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'awaiting' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                  <span className="inline-flex items-center gap-2">Παραδόθηκαν{awaitingNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-red-600 text-white">{awaitingNewCount}</span>}</span>
-                </button>
-                <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> !!t.receivedByUnit); setUnitTransfersSubTab('completed'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'completed' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                  <span className="inline-flex items-center gap-2">Ολοκληρωμένες{completedNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{completedNewCount}</span>}</span>
-                </button>
-              </div>
-            );
-          })()}
-
-          {unitTransfersSubTab === 'open' && (
-            <>
-            <div className="font-semibold mb-2">Ανοιχτές Μεταφορές (Αναμένονται για Παραλαβή)</div>
-            <table className="w-full border text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-2">Α/Α</th>
-                  <th className="border px-2">Παραγωγός</th>
-                  <th className="border px-2">Έργο</th>
-                  <th className="border px-2">Συμφωνία</th>
-                  <th className="border px-2">Διεύθυνση</th>
-                  <th className="border px-2">Μεταφορέας</th>
-                  <th className="border px-2">Αρ. Οχήματος</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).length === 0 ? (
-                  <tr><td className="border text-center p-2" colSpan={7}>—</td></tr>
-                ) : (
-                  applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).map((t: any, i: number) => {
-                    const prj = A(projects).find((p: any) => p.id === t.projectId);
-                    return (
-                      <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
-                        <td className="border text-center">{i + 1}</td>
-                        <td className="border text-center"><div className="font-semibold">{t.producer}</div></td>
-                        <td className="border text-center">{t.project}</td>
-                        <td className="border text-center">{(prj && prj.agreement) || '—'}</td>
-                        <td className="border text-center">{t.address}</td>
-                        <td className="border text-center">{prj?.transporter || '—'}</td>
-                        <td className="border text-center">{t.vehicle || '—'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-            </>
-          )}
-
-          {unitTransfersSubTab === 'awaiting' && (
-            (() => {
-              const rows = applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit);
-              const latestId = (() => {
-                if (rows.length === 0) return null;
-                let best: any = null;
-                let bestTs = -Infinity;
-                for (const r of rows) {
-                  const d = r.unitDate || '1970-01-01';
-                  const tm = (r.unitTime || '00:00').padStart(5, '0');
-                  const ts = new Date(`${d}T${tm.length === 5 ? tm+':00' : tm}`).getTime();
-                  if (ts >= bestTs) { bestTs = ts; best = r; }
-                }
-                return best ? best.id : null;
-              })();
+        adminOnly ? (
+          <div className="bg-white border rounded p-3">
+            {/* Subtabs for transfers (admin view) */}
+            {(() => {
+              const filtered = applyTransportFilter(transports, projects, filter);
+              const openNewCount = filtered.filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit && t.isNew).length;
+              const awaitingNewCount = filtered.filter((t: any) => t.deliveredToUnit && !t.receivedByUnit && t.isNew).length;
+              const completedCount = filtered.filter((t: any) => t.receivedByUnit).length;
+              const completedNewCount = filtered.filter((t: any) => t.receivedByUnit && t.isNew).length;
               return (
-                <>
-                  <div className="font-semibold mb-2">Παραδόθηκαν (Εκκρεμούν Υπογραφές)</div>
-                  <table className="w-full border text-sm">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="border px-2">Α/Α</th>
-                        <th className="border px-2">Παραγωγός</th>
-                        <th className="border px-2">Έργο</th>
-                        <th className="border px-2">Διεύθυνση</th>
-                        <th className="border px-2">Ημ/νία Παράδοσης</th>
-                        <th className="border px-2">Ώρα Παράδοσης</th>
-                        <th className="border px-2">Κατάσταση</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.length === 0 ? (
-                        <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
-                      ) : (
-                        rows.map((t: any, i: number) => (
-                          <tr key={t.id} className={t.id === latestId ? 'bg-green-50' : ''}>
-                            <td className="border text-center">{i + 1}</td>
-                            <td className="border text-center">{t.producer}</td>
-                            <td className="border text-center">{t.project}</td>
-                            <td className="border text-center">{t.address}</td>
-                            <td className="border text-center">{fmt(t.unitDate)}</td>
-                            <td className="border text-center">{t.unitTime || '—'}</td>
-                            <td className="border text-center text-blue-700">
-                              {t.status === 'Completed' ? (
-                                'Ολοκληρώθηκε'
-                              ) : t.status === 'Waiting for transporter signature' ? (
-                                'Αναμονή για υπογραφή μεταφορέα'
-                              ) : t.status === 'Waiting for unit signature' ? (
-                                <span title="Πήγαινε στο tablet για υπογραφή">Αναμονή για υπογραφή μονάδας</span>
-                              ) : t.status === 'Waiting' ? (
-                                'Αναμονή'
-                              ) : (
-                                t.status || 'Αναμονή υπογραφής'
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </>
+                <div className="flex items-center gap-2 mb-3">
+                  <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit); setUnitTransfersSubTab('open'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'open' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                    <span className="inline-flex items-center gap-2">Ανοιχτές{openNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{openNewCount}</span>}</span>
+                  </button>
+                  <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> t.deliveredToUnit && !t.receivedByUnit); setUnitTransfersSubTab('awaiting'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'awaiting' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                    <span className="inline-flex items-center gap-2">Παραδόθηκαν{awaitingNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-red-600 text-white">{awaitingNewCount}</span>}</span>
+                  </button>
+                  <button onClick={() => { onClearTransNewWhere && onClearTransNewWhere((t:any)=> !!t.receivedByUnit); setUnitTransfersSubTab('completed'); }} className={`px-3 py-1.5 rounded-full text-sm ${unitTransfersSubTab === 'completed' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                    <span className="inline-flex items-center gap-2">Ολοκληρωμένες{completedNewCount > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[11px] bg-gray-300 text-gray-800">{completedNewCount}</span>}</span>
+                  </button>
+                </div>
               );
-            })()
-          )}
+            })()}
 
-          {unitTransfersSubTab === 'completed' && (
-            <>
-            <div className="font-semibold mb-2">Ολοκληρωμένες (Ολοκληρωμένες Μεταφορές)</div>
+            {unitTransfersSubTab === 'open' && (
+              <>
+              <div className="font-semibold mb-2">Ανοιχτές Μεταφορές (Αναμένονται για Παραλαβή)</div>
+              <table className="w-full border text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border px-2">Α/Α</th>
+                    <th className="border px-2">Παραγωγός</th>
+                    <th className="border px-2">Έργο</th>
+                    <th className="border px-2">Συμφωνία</th>
+                    <th className="border px-2">Διεύθυνση</th>
+                    <th className="border px-2">Μεταφορέας</th>
+                    <th className="border px-2">Αρ. Οχήματος</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).length === 0 ? (
+                    <tr><td className="border text-center p-2" colSpan={7}>—</td></tr>
+                  ) : (
+                    applyTransportFilter(transports, projects, filter).filter((t: any) => t.approvedByProducer && !t.receivedByUnit && !t.deliveredToUnit).map((t: any, i: number) => {
+                      const prj = A(projects).find((p: any) => p.id === t.projectId);
+                      return (
+                        <tr key={t.id} className={t.isNew ? 'bg-green-50' : ''}>
+                          <td className="border text-center">{i + 1}</td>
+                          <td className="border text-center"><div className="font-semibold">{t.producer}</div></td>
+                          <td className="border text-center">{prj ? (prj.projectName + (prj.agreement && prj.agreement !== '-' ? ` (${prj.agreement})` : '')) : t.project}</td>
+                          <td className="border text-center">{(prj && prj.agreement) || '—'}</td>
+                          <td className="border text-center">{t.address}</td>
+                          <td className="border text-center">{prj?.transporter || '—'}</td>
+                          <td className="border text-center">{t.vehicle || '—'}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+              </>
+            )}
+
+            {unitTransfersSubTab === 'awaiting' && (
+              (() => {
+                const rows = applyTransportFilter(transports, projects, filter).filter((t: any) => t.deliveredToUnit && !t.receivedByUnit);
+                const latestId = (() => {
+                  if (rows.length === 0) return null;
+                  let best: any = null;
+                  let bestTs = -Infinity;
+                  for (const r of rows) {
+                    const d = r.unitDate || '1970-01-01';
+                    const tm = (r.unitTime || '00:00').padStart(5, '0');
+                    const ts = new Date(`${d}T${tm.length === 5 ? tm+':00' : tm}`).getTime();
+                    if (ts >= bestTs) { bestTs = ts; best = r; }
+                  }
+                  return best ? best.id : null;
+                })();
+                return (
+                  <>
+                    <div className="font-semibold mb-2">Παραδόθηκαν (Εκκρεμούν Υπογραφές)</div>
+                    <table className="w-full border text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="border px-2">Α/Α</th>
+                          <th className="border px-2">Παραγωγός</th>
+                          <th className="border px-2">Έργο</th>
+                          <th className="border px-2">Διεύθυνση</th>
+                          <th className="border px-2">Ημ/νία Παράδοσης</th>
+                          <th className="border px-2">Ώρα Παράδοσης</th>
+                          <th className="border px-2">Κατάσταση</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.length === 0 ? (
+                          <tr><td className="border text-center p-2" colSpan={6}>—</td></tr>
+                        ) : (
+                          rows.map((t: any, i: number) => (
+                            <tr key={t.id} className={t.id === latestId ? 'bg-green-50' : ''}>
+                              <td className="border text-center">{i + 1}</td>
+                              <td className="border text-center">{t.producer}</td>
+                              <td className="border text-center">{(() => { const prj = A(projects).find((p:any)=> p.id === t.projectId || (p.projectName && String(p.projectName).trim().toLowerCase() === String(t.project || '').trim().toLowerCase())); return prj ? (prj.projectName + (prj.agreement && prj.agreement !== '-' ? ` (${prj.agreement})` : '')) : t.project; })()}</td>
+                              <td className="border text-center">{t.address}</td>
+                              <td className="border text-center">{fmt(t.unitDate)}</td>
+                              <td className="border text-center">{t.unitTime || '—'}</td>
+                              <td className="border text-center text-blue-700">
+                                {t.status === 'Completed' ? (
+                                  'Ολοκληρώθηκε'
+                                ) : t.status === 'Waiting for transporter signature' ? (
+                                  'Αναμονή για υπογραφή μεταφορέα'
+                                ) : t.status === 'Waiting for unit signature' ? (
+                                  <span title="Πήγαινε στο tablet για υπογραφή">Αναμονή για υπογραφή μονάδας</span>
+                                ) : t.status === 'Waiting' ? (
+                                  'Αναμονή'
+                                ) : (
+                                  t.status || 'Αναμονή υπογραφής'
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </>
+                );
+              })()
+            )}
+
+            {unitTransfersSubTab === 'completed' && (
+              <>
+              <div className="font-semibold mb-2">Ολοκληρωμένες (Ολοκληρωμένες Μεταφορές)</div>
+              <table className="w-full border text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border px-2">Α/Α</th>
+                    <th className="border px-2">Παραγωγός</th>
+                    <th className="border px-2">Έργο</th>
+                    <th className="border px-2">Μεταφορέας</th>
+                    <th className="border px-2">Αρ. Οχήματος</th>
+                    <th className="border px-2">Ημ/νία Παραλαβής</th>
+                    <th className="border px-2">Ώρα Παραλαβής</th>
+                    <th className="border px-2">Βάρος (tn)</th>
+                    <th className="border px-2">ΕΚΑ</th>
+                    <th className="border px-2">PDF</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).length === 0 ? (
+                    <tr><td className="border text-center p-2" colSpan={10}>—</td></tr>
+                  ) : (
+                    applyTransportFilter(transports, projects, filter).filter((t: any) => t.receivedByUnit).map((t: any, i: number) => {
+                      const prj = A(projects).find((p: any) => p.id === t.projectId);
+                      return (
+                        <tr key={t.id}>
+                          <td className="border text-center">{i + 1}</td>
+                          <td className="border text-center">{t.producer}</td>
+                          <td className="border text-center">{prj ? (prj.projectName + (prj.agreement && prj.agreement !== '-' ? ` (${prj.agreement})` : '')) : t.project}</td>
+                          <td className="border text-center">{prj?.transporter || '—'}</td>
+                          <td className="border text-center">{t.vehicle || '—'}</td>
+                          <td className="border text-center">{fmt(t.unitDate)}</td>
+                          <td className="border text-center">{t.unitTime || '—'}</td>
+                          <td className="border text-center">{t.weight}</td>
+                          <td className="border text-center">{t.ekaCategory}</td>
+                          <td className="border text-center"><Btn className="bg-gray-100" onClick={() => pdfTransfer(t)}>PDF</Btn></td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white border rounded p-3">
+            {/* Web weigh mode: show only completed transfers with the requested title */}
+            <div className="font-semibold mb-2">Ολοκληρωμένες Μεταφορές - Εντυπα Αναγνώρισης και Παρακολούθησης</div>
             <table className="w-full border text-sm">
               <thead className="bg-gray-100">
                 <tr>
@@ -3017,7 +4198,7 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                       <tr key={t.id}>
                         <td className="border text-center">{i + 1}</td>
                         <td className="border text-center">{t.producer}</td>
-                        <td className="border text-center">{t.project}</td>
+                        <td className="border text-center">{prj ? (prj.projectName + (prj.agreement && prj.agreement !== '-' ? ` (${prj.agreement})` : '')) : t.project}</td>
                         <td className="border text-center">{prj?.transporter || '—'}</td>
                         <td className="border text-center">{t.vehicle || '—'}</td>
                         <td className="border text-center">{fmt(t.unitDate)}</td>
@@ -3031,9 +4212,8 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                 )}
               </tbody>
             </table>
-            </>
-          )}
-        </div>
+          </div>
+        )
       )}
 
       {tab === 'slips' && (
@@ -3043,9 +4223,90 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
             transports={transports}
             onReceive={onReceive}
             onFinalize={onFinalize}
-            lockTab="slips"
-            hideChrome={true}
+              lockTab="slips"
+              hideChrome={true}
+              parentFilter={filter}
+              parentSetFilter={setFilter}
           />
+        </div>
+      )}
+
+      {tab === 'pricelist' && (
+        <div className="bg-white border rounded p-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold">Τιμοκατάλογος</div>
+            <div>
+              {!priceEditMode ? (
+                <button className="px-3 py-1.5 rounded bg-blue-600 text-white" onClick={() => { setEditPrices(Object.fromEntries(priceList.map((pp:any)=>[pp.code, pp.price]))); setPriceEditMode(true); }}>Επεξεργασία</button>
+                  ) : (
+                <div className="flex items-center gap-2">
+                  <button className="px-3 py-1.5 rounded bg-green-600 text-white" onClick={() => {
+                    // apply edits (normalize to two decimals)
+                    try {
+                      const next = priceList.map((pp: any) => ({ ...pp, price: (parseFloat(String(editPrices[pp.code] ?? pp.price).replace(',', '.')) || 0).toFixed(2) }));
+                      setPriceList(next);
+
+                      // persist pricelist so priceFor() can pick it up
+                      try {
+                        // store under a shared key structure expected by getStoredPriceMap
+                        const arr = next.map((p: any) => ({ code: String(p.code || ''), price: Number(p.price || 0) }));
+                        const rawAll = localStorage.getItem('iwm_unit_pricelist');
+                        const obj = rawAll ? (JSON.parse(rawAll) || {}) : {};
+                        // write the same pricelist for known units and as the default entry ('')
+                        obj[''] = arr;
+                        for (const u of UNITS) obj[u] = arr;
+                        localStorage.setItem('iwm_unit_pricelist', JSON.stringify(obj));
+                        // also write per-unit keys for direct lookup
+                        for (const u of UNITS) {
+                          try { localStorage.setItem(`iwm_unit_pricelist_${u}`, JSON.stringify(arr)); } catch {}
+                        }
+                      } catch (e) { /* ignore persistence errors */ }
+                    } catch { /* ignore */ }
+                    setPriceEditMode(false);
+                    setEditPrices({});
+                  }}>Αποθήκευση</button>
+                  <button className="px-3 py-1.5 rounded bg-gray-100" onClick={() => { setPriceEditMode(false); setEditPrices({}); }}>Ακύρωση</button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="text-sm">
+            <table className="w-full border text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-2">Α/Α</th>
+                  <th className="border px-2">ΕΚΑ</th>
+                  <th className="border px-2">Περιγραφή</th>
+                  <th className="border px-2">Τιμή (€ / tn)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceList.length === 0 ? (
+                  <tr><td className="border text-center p-2" colSpan={4}>—</td></tr>
+                ) : (
+                  priceList.map((p: any, i: number) => (
+                    <tr key={p.code}>
+                      <td className="border text-center">{i + 1}</td>
+                      <td className="border px-2"><span className="whitespace-nowrap">{String(p.code).replace(/ /g, '\u00A0')}</span></td>
+                      <td className="border px-2">{p.description}</td>
+                      <td className="border px-2 text-right">
+                        {priceEditMode ? (
+                          <input
+                            type="text"
+                            className="border p-1 text-right w-24"
+                            value={editPrices[p.code] ?? p.price}
+                            onChange={(e:any) => setEditPrices(prev => ({ ...prev, [p.code]: e.target.value }))}
+                          />
+                        ) : (
+                          p.price
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -3581,7 +4842,7 @@ const Unit = ({ projects, transports, onAcceptAgreement, onRejectAgreement, onRe
                   <label className="col-span-2">Χρεώστης
                     <select className="border p-1 w-full" value={weighData.debtor || ''} onChange={(e: any) => setWeighData({ ...weighData, debtor: e.target.value })}>
                       <option value="">— Επιλογή —</option>
-                      {DEBTOR_OPTIONS.map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                      {(Array.from(new Set(readStoredDebtors() || [])) as string[]).map((d: string)=> (<option key={d} value={d}>{d}</option>))}
                     </select>
                   </label>
                 </div>
@@ -3676,7 +4937,7 @@ function UnitTabletFrame({ projects, transports, onReceive, onFinalize, onAddTra
   );
 }
 
-function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTransport, addNotif, lockTab, hideChrome, onNavigateUnit }: any) {
+function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTransport, addNotif, lockTab, hideChrome, onNavigateUnit, parentFilter, parentSetFilter }: any) {
   const [filter, setFilter] = useState<any>({ producer: '', project: '', from: '', to: '' });
   const [weighOpen, setWeighOpen] = useState(false);
   const [weighData, setWeighData] = useState<any>({ id: '', weight: '', eka: (EKA[0] && EKA[0].code) || '', debtor: '' });
@@ -3685,11 +4946,14 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
   const [showAutoConfirm, setShowAutoConfirm] = useState(false);
   const [showUnitSignConfirm, setShowUnitSignConfirm] = useState(false);
   const [unitSignModal, setUnitSignModal] = useState<any>({ open: false, id: null, signature: '' });
-  const DEBTOR_OPTIONS = ['Εργολάβος Α','Εργολάβος Β','Εργολάβος Γ','Εταιρεία Skip 1','Εταιρεία Skip 2','Εταιρεία Skip 3'];
 
   // Local slips store for independent weighing (not linked to transports)
   const [slips, setSlips] = useState<any[]>([]);
   const [slipsFilter, setSlipsFilter] = useState<any>({ producer: '', project: '', debtor: '', transporter: '', vehicle: '', from: '', to: '' });
+  const [showSlipsFilters, setShowSlipsFilters] = useState(false);
+  // when embedded into the web Unit (hideChrome === true) we accept the parent filter instead of local slipsFilter
+  const effectiveSlipsFilter = hideChrome && parentFilter ? parentFilter : slipsFilter;
+  const effectiveSetSlipsFilter = hideChrome && parentSetFilter ? parentSetFilter : setSlipsFilter;
   const [completedFilter, setCompletedFilter] = useState<any>({ producer: '', project: '', transporter: '', vehicle: '', from: '', to: '' });
   // Offline (local) Producers & Projects for Unit web/tablet receive form
   const [offlineProducers, setOfflineProducers] = useState<string[]>(() => {
@@ -3769,10 +5033,12 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
     }
     if (!matchId && wForm.producer && wForm.project) {
       const byPP = openTransfers.find((t: any) => {
-        const prj = A(projects).find((p: any) => p.id === t.projectId);
-        const tProj = t.project || prj?.projectName || '';
-        return t.producer === wForm.producer && tProj === wForm.project;
-      });
+          const prj = A(projects).find((p: any) => p.id === t.projectId);
+          // Prefer matching by projectId when available to avoid collisions on identical names
+          if (wForm.projectId) return String(t.projectId || '') === String(wForm.projectId);
+          const tProj = t.project || prj?.projectName || '';
+          return t.producer === wForm.producer && tProj === wForm.project;
+        });
       if (byPP) matchId = byPP.id;
     }
     const now = new Date();
@@ -3784,7 +5050,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
       time: tm,
       producer: (wForm.producer || '-'),
       project: (wForm.project || '-'),
-      projectId: undefined,
+      projectId: wForm.projectId,
       unit: '-',
       debtor: (wForm.debtor || '-'),
       transporter: (wForm.transporter || '-'),
@@ -3794,13 +5060,26 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
     };
     setSlips((prev: any[]) => [row, ...prev]);
     // If transporter is on our platform, create a pending delivery record and notify transporter mobile
+    // BUT if we already matched an existing open transfer (matchId) treat it as the same and do NOT create a duplicate
     const inPlatform = new Set(['Euroskip', 'Skip Hire']);
-    if (wForm.transporter && inPlatform.has(wForm.transporter)) {
-      const t = {
+    if (wForm.transporter && inPlatform.has(wForm.transporter) && !matchId) {
+      const rp = String(row.project || '').trim().toLowerCase();
+      const matchedProject = A(projects).find((p:any) => {
+        if (!p) return false;
+        const pn = String(p.projectName || '').trim().toLowerCase();
+        if (pn && pn === rp) return true;
+        if (pn && rp && pn.includes(rp)) return true;
+        if (p.id && String(p.id) === String(row.project)) return true;
+        return false;
+      });
+      // For on-platform transporters we MUST create a transport entry so the driver
+      // can sign the delivery via the transporter mobile app. Create a manual transport
+      // that represents the delivered-to-unit record awaiting transporter signature.
+      const t: any = {
         id: gid(),
         producer: row.producer,
         project: row.project,
-        projectId: undefined,
+        projectId: matchedProject ? matchedProject.id : undefined,
         address: '-',
         unit: row.unit,
         vehicle: row.vehicle,
@@ -3817,14 +5096,16 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
         fromProducer: false,
         transporter: row.transporter,
         isNew: true,
+        manualCreated: true,
+        manualWeighed: false,
       };
       try { onAddTransport && onAddTransport(t); } catch {}
-      try { addNotif && addNotif('Παράδοση στη μονάδα', `${row.producer} / ${row.project} — Παραλαβή (εκτός IWM)`, { page: 'transporter', tab: 'transfers' }); } catch {}
+      try { addNotif && addNotif('Παράδοση στη μονάδα', `${row.producer} / ${row.project} — Παραλαβή (χειροκίνητη)`, { page: 'transporter', tab: 'transfers' }); } catch {}
     }
     if (andPrint) try { pdfSlip(row); } catch {}
     // If matched an existing open transfer, update it and redirect to Automatic tab
     if (matchId) {
-      try { onReceive && onReceive(matchId, w, wForm.eka); } catch {}
+      try { onReceive && onReceive(matchId, w, wForm.eka, true); } catch {}
     }
     // Stay on the manual receive page and show confirmation toast
     setTab('weigh' as any);
@@ -3840,9 +5121,16 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
     if (!plate) return alert('Συμπλήρωσε Αρ. Οχήματος');
     if (!wForm.eka) return alert('Επίλεξε κατηγορία ΕΚΑ');
     // If project is not known (platform/offline), show central popup flow
-    const platformAll = new Set(A(projects).map((p:any)=> p.projectName).filter(Boolean));
+    // Projects in the UI may be shown as labels that include agreement numbers
+    // (e.g. "Project Name (AG123)"). Accept either the plain projectName or
+    // the label that includes agreement as a known platform project.
+    const platformNames = new Set(A(projects).map((p:any) => (p.projectName || '').trim()).filter(Boolean));
+    const platformLabels = new Set(A(projects).map((p:any) => {
+      const label = (p.projectName || '').trim();
+      return label + (p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : '');
+    }).filter(Boolean));
     const offlineAll = new Set(Object.values(offlineProjects || {}).flat());
-    const isKnown = platformAll.has(wForm.project) || offlineAll.has(wForm.project);
+    const isKnown = platformNames.has(wForm.project) || platformLabels.has(wForm.project) || offlineAll.has(wForm.project);
     if (!isKnown) {
       setProjReg({ open: true, step: 'ask', project: wForm.project, producer: (wForm.producer||''), andPrint });
       return;
@@ -3854,7 +5142,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
   const submitWeigh = () => {
     if (!weighData.id) return;
     // call parent receive handler
-    onReceive(weighData.id, parseFloat(weighData.weight || '0'), weighData.eka);
+  onReceive(weighData.id, parseFloat(weighData.weight || '0'), weighData.eka, true);
     // append a slip entry regardless of signatures/completion
     const t = A(transports).find((x: any) => x.id === weighData.id);
     const prj = t ? A(projects).find((p: any) => p.id === t.projectId) : null;
@@ -3924,14 +5212,16 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                     className="absolute right-2 top-1 text-green-800 hover:text-green-900"
                     onClick={() => setShowUnitSignConfirm(false)}
                   >✕</button>
-                  Η υπογραφή μονάδας καταχωρήθηκε.{' '}
-                  <button
-                    className="underline font-medium text-green-700 hover:text-green-800"
-                    onClick={() => {
-                      setTab('weigh');
-                      setShowUnitSignConfirm(false);
-                    }}
-                  >Μετάβαση στη ζύγιση</button>
+                  <span>
+                    Η υπογραφή μονάδας καταχωρήθηκε.{' '}
+                    <button
+                      className="underline font-medium text-green-700 hover:text-green-800"
+                      onClick={() => {
+                        setTab('weigh');
+                        setShowUnitSignConfirm(false);
+                      }}
+                    >Μετάβαση στη ζύγιση</button>
+                  </span>
                 </div>
               )}
 
@@ -3940,7 +5230,10 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <button onClick={() => setWSubTab('receive')} className={`px-3 py-2 ${wSubTab === 'receive' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Χειροκίνητη Παραλαβή</button>
-                      <button onClick={() => setWSubTab('open')} className={`px-3 py-2 ${wSubTab === 'open' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>Αυτόματη Παραλαβή</button>
+                      <button onClick={() => setWSubTab('open')} className={`px-3 py-2 ${wSubTab === 'open' ? 'border-b-2 border-blue-600 font-semibold text-blue-700' : 'text-gray-500'}`}>
+                        Αυτόματη Παραλαβή
+                        <span className={`ml-2 text-xs rounded-full px-2 ${openList.length === 0 ? 'bg-gray-200 text-gray-700' : 'bg-red-600 text-white'}`}>{openList.length}</span>
+                      </button>
                     </div>
                     <button className="px-2 py-1 border rounded bg-gray-50 hover:bg-gray-100 text-sm" onClick={() => setAdminOpen(true)}>Database</button>
                   </div>
@@ -4023,31 +5316,73 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                         // Dynamic platform data
                         const platformProducers = [...new Set(A(projects).map((p: any) => p.producer).filter(Boolean))];
                         const allProducers = Array.from(new Set([...(platformProducers as string[]), ...offlineProducers])).sort();
-                        const projectOpts = (() => {
-                          if (wForm.producer) {
-                            const platformForProducer = A(projects).filter((p:any)=> p.producer === wForm.producer).map((p:any)=> p.projectName).filter(Boolean);
-                            const offlineForProducer = offlineProjects[wForm.producer] || [];
-                            return Array.from(new Set([...(platformForProducer as string[]), ...offlineForProducer])).sort();
-                          }
-                          const platformAll = A(projects).map((p:any)=> p.projectName).filter(Boolean);
-                          const offlineAll = Object.values(offlineProjects).flat();
-                          return Array.from(new Set([...(platformAll as string[]), ...offlineAll])).sort();
-                        })();
+                          const projectOpts = (() => {
+                            // Build labels that include agreement number when present to avoid homonyms
+                            const makeLabel = (p: any) => (p.projectName + (p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : ''));
+                            if (wForm.producer) {
+                              const platformForProducer = A(projects).filter((p:any)=> p.producer === wForm.producer).map((p:any)=> makeLabel(p)).filter(Boolean);
+                              const offlineForProducer = (offlineProjects[wForm.producer] || []).map((nm: string) => nm);
+                              return Array.from(new Set([...(platformForProducer as string[]), ...offlineForProducer])).sort();
+                            }
+                            const platformAll = A(projects).map((p:any)=> makeLabel(p)).filter(Boolean);
+                            const offlineAll = Object.values(offlineProjects).flat();
+                            return Array.from(new Set([...(platformAll as string[]), ...offlineAll])).sort();
+                          })();
                         return (
                           <>
-                            {/* Row 1: Plate, Transporter */}
+                            {/* Row 0: Clear button spanning both columns */}
+                            <div className="col-span-2">
+                              <button
+                                type="button"
+                                className="mb-2 px-2 py-1 border rounded bg-red-100 hover:bg-red-200 text-red-700 text-xs"
+                                onClick={() => {
+                                  setWForm({transporter:'', project:'', producer:'', debtor:'', plate:'', weight:'', notes:''});
+                                  setTimeout(() => {
+                                    const first = document.querySelector('#manual-receive-transporter');
+                                    if (first) (first as HTMLInputElement).focus();
+                                  }, 50);
+                                }}
+                              >
+                                Clear
+                              </button>
+                            </div>
+
+                            {/* Row 1: Plate */}
                             <label>Αρ. Οχήματος
                               {(() => {
                                 const trSel = (wForm.transporter || '').trim();
-                                const basePlates = trSel ? (transporterPlates[trSel] || []) : Object.values(transporterPlates).flat();
-                                const offlinePlatesAll = trSel ? (offlineTransPlates[trSel] || []) : Object.values(offlineTransPlates).flat();
-                                const allPlates: string[] = Array.from(new Set([...(basePlates as string[]), ...(offlinePlatesAll as string[])]));
+                                // Show all plates for selected transporter, or all plates if none selected
+                                let vehiclesMap: Record<string, string[]> = {};
+                                try {
+                                  const raw = localStorage.getItem('iwm_transporter_vehicles');
+                                  vehiclesMap = raw ? JSON.parse(raw) : {};
+                                } catch {}
+                                // Only include plates for transporters that exist in the unit's database
+                                const validTransporters = new Set(Object.keys(offlineTransPlates));
+                                let allPlates: string[] = [];
+                                if (trSel) {
+                                  // Only show if transporter exists in unit DB
+                                  if (validTransporters.has(trSel)) {
+                                    const profilePlates = vehiclesMap[trSel] || [];
+                                    const offlinePlates = offlineTransPlates[trSel] || [];
+                                    allPlates = Array.from(new Set([...profilePlates, ...offlinePlates]));
+                                  } else {
+                                    allPlates = [];
+                                  }
+                                } else {
+                                  // No transporter selected: show all plates from all transporters that exist in unit DB
+                                  allPlates = Array.from(new Set([
+                                    ...Object.entries(vehiclesMap).filter(([tr]) => validTransporters.has(tr)).map(([, arr]) => arr).flat(),
+                                    ...Object.entries(offlineTransPlates).map(([, arr]) => arr).flat()
+                                  ]));
+                                }
                                 const plateOwner: Record<string,string> = {};
-                                Object.entries(transporterPlates).forEach(([tr, arr]) => { (arr||[]).forEach((pl:string)=> { plateOwner[pl] = tr; }); });
                                 Object.entries(offlineTransPlates).forEach(([tr, arr]) => { (arr||[]).forEach((pl:string)=> { plateOwner[pl] = tr; }); });
+                                Object.entries(vehiclesMap).forEach(([tr, arr]) => { if (validTransporters.has(tr)) (arr||[]).forEach((pl:string)=> { plateOwner[pl] = tr; }); });
                                 return (
                                   <>
                                     <input
+                                      id="manual-receive-transporter"
                                       className="border p-1 w-full"
                                       placeholder="Πληκτρολόγησε ή επίλεξε αριθμό"
                                       list="dl-plates"
@@ -4082,6 +5417,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                                     <div className="flex-1 flex items-center gap-2">
                                       <span className={`inline-block w-2 h-2 rounded-full ${selected ? (selIsPlatform ? 'bg-green-500' : 'bg-red-500') : 'bg-gray-300'}`}></span>
                                       <input
+                                        id="manual-receive-transporter"
                                         className="border p-1 w-full"
                                         placeholder="Πληκτρολόγησε ή επίλεξε μεταφορέα"
                                         list="dl-transporters"
@@ -4119,17 +5455,22 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                                   value={wForm.project}
                                   onChange={(e: any) => {
                                     const val = e.target.value;
-                                    setWForm((f: any) => ({ ...f, project: val }));
-                                    if (!wForm.producer && val) {
-                                      const match = A(projects).find((p:any)=> p.projectName === val);
-                                      if (match && match.producer) {
-                                        setWForm((f:any)=> ({ ...f, producer: match.producer }));
+                                    // try to resolve exact project by label (including agreement) first, then by name
+                                    const found = A(projects).find((p:any) => {
+                                      const label = p.projectName + (p.agreement && p.agreement !== '-' ? ` (${p.agreement})` : '');
+                                      return label === val || p.projectName === val;
+                                    });
+                                    if (found) {
+                                      setWForm((f: any) => ({ ...f, project: val, projectId: found.id, producer: found.producer }));
+                                    } else {
+                                      // if not found, clear projectId to avoid accidental mixing with similarly named projects
+                                      // but still keep producer if it was manually set earlier
+                                      // also try to find in offlineProjects by exact name
+                                      const offlineMatch = Object.entries(offlineProjects).find(([,list])=> Array.isArray(list) && list.includes(val));
+                                      if (offlineMatch) {
+                                        setWForm((f:any)=> ({ ...f, project: val, projectId: undefined, producer: offlineMatch[0] }));
                                       } else {
-                                        const found = Object.entries(offlineProjects).find(([,list])=> Array.isArray(list) && list.includes(val));
-                                        if (found) {
-                                          const [prod] = found;
-                                          setWForm((f:any)=> ({ ...f, producer: prod }));
-                                        }
+                                        setWForm((f: any) => ({ ...f, project: val, projectId: undefined }));
                                       }
                                     }
                                   }}
@@ -4196,10 +5537,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                               <div className="flex items-center gap-2">
                                 <select className="border p-1 w-full" value={wForm.debtor} onChange={(e: any) => setWForm((f: any) => ({ ...f, debtor: e.target.value }))}>
                                   <option value="">— Επιλογή —</option>
-                                  {Array.from(new Set([...
-                                    DEBTOR_OPTIONS,
-                                    ...offlineDebtors,
-                                  ])).map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                                  {(Array.from(new Set(offlineDebtors || [])) as string[]).map((d: string)=> (<option key={d} value={d}>{d}</option>))}
                                 </select>
                                 <button
                                   type="button"
@@ -4233,7 +5571,6 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                       })()}
                       {/* Χωρίς πεδίο υπογραφής για Παραλαβή (εκτός IWM) */}
                       <div className="col-span-2 flex justify-end gap-2">
-                        <button className="px-3 py-2 rounded bg-gray-200" onClick={() => setWForm({ project: '', producer: '', debtor: '', transporter: '', plate: '', eka: (EKA[0] && EKA[0].code) || '', weight: '', signature: '' })}>Καθαρισμός</button>
                         <button className="px-3 py-2 rounded bg-green-600 text-white" onClick={() => submitWeighSlip(false)}>Καταχώριση</button>
                         <button className="px-3 py-2 rounded bg-blue-600 text-white" onClick={() => submitWeighSlip(true)}>Καταχώριση και Εκτύπωση</button>
                       </div>
@@ -4249,22 +5586,22 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   const slipDebtors = [...new Set(A(slips).map((s:any)=>s.debtor).filter(Boolean))];
                   const slipTransporters = [...new Set(A(slips).map((s:any)=>s.transporter).filter(Boolean))];
                   const slipVehiclesAll = [...new Set(A(slips).map((s:any)=>s.vehicle).filter(Boolean))];
-                  const slipVehicles = slipsFilter.transporter
-                    ? [...new Set(A(slips).filter((s:any)=> s.transporter === slipsFilter.transporter).map((s:any)=> s.vehicle).filter(Boolean))]
+                  const slipVehicles = effectiveSlipsFilter.transporter
+                    ? [...new Set(A(slips).filter((s:any)=> s.transporter === effectiveSlipsFilter.transporter).map((s:any)=> s.vehicle).filter(Boolean))]
                     : slipVehiclesAll;
                   const inRange = (d: string) => {
                     if (!d) return true;
                     const dd = d;
-                    if (slipsFilter.from && dd < slipsFilter.from) return false;
-                    if (slipsFilter.to && dd > slipsFilter.to) return false;
+                    if (effectiveSlipsFilter.from && dd < effectiveSlipsFilter.from) return false;
+                    if (effectiveSlipsFilter.to && dd > effectiveSlipsFilter.to) return false;
                     return true;
                   };
                   const rows = A(slips).filter((s:any)=> {
-                    if (slipsFilter.producer && s.producer !== slipsFilter.producer) return false;
-                    if (slipsFilter.project && s.project !== slipsFilter.project) return false;
-                    if (slipsFilter.debtor && s.debtor !== slipsFilter.debtor) return false;
-                    if (slipsFilter.transporter && s.transporter !== slipsFilter.transporter) return false;
-                    if (slipsFilter.vehicle && s.vehicle !== slipsFilter.vehicle) return false;
+                    if (effectiveSlipsFilter.producer && s.producer !== effectiveSlipsFilter.producer) return false;
+                    if (effectiveSlipsFilter.project && s.project !== effectiveSlipsFilter.project) return false;
+                    if (effectiveSlipsFilter.debtor && s.debtor !== effectiveSlipsFilter.debtor) return false;
+                    if (effectiveSlipsFilter.transporter && s.transporter !== effectiveSlipsFilter.transporter) return false;
+                    if (effectiveSlipsFilter.vehicle && s.vehicle !== effectiveSlipsFilter.vehicle) return false;
                     if (!inRange(s.date)) return false;
                     return true;
                   });
@@ -4284,60 +5621,66 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                             <div className="text-xs text-gray-600">Εγγραφές: <span className="font-medium">{rows.length}</span> • Σύνολο βαρών: <span className="font-medium">{totalWeight.toFixed(2)} tn</span></div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button className="px-3 py-2 text-sm rounded-lg border border-gray-300" onClick={()=> setSlipsFilter({ producer:'', project:'', debtor:'', transporter:'', vehicle:'', from:'', to:'' })}>Επαναφορά</button>
-                          <button className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white" onClick={exportCSV}>Εξαγωγή CSV</button>
-                        </div>
+                        {!hideChrome && (
+                          <div className="flex items-center gap-2">
+                              <button className="p-2 rounded hover:bg-gray-100" title="Φίλτρα" onClick={() => setShowSlipsFilters((v:any) => !v)}>
+                                <Filter className="w-5 h-5 text-gray-700" />
+                              </button>
+                              <button className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white" onClick={exportCSV}>Εξαγωγή CSV</button>
+                            </div>
+                        )}
                       </div>
 
                       {/* Filters Card */}
-                      <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
+                      {!hideChrome && showSlipsFilters && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Παραγωγός</label>
-                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.producer} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, producer: e.target.value })}>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.producer} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, producer: e.target.value })}>
                               <option value="">— Όλοι —</option>
                               {slipProducers.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Έργο</label>
-                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.project} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, project: e.target.value })}>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.project} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, project: e.target.value })}>
                               <option value="">— Όλα —</option>
                               {slipProjects.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Χρεώστης</label>
-                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.debtor} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, debtor: e.target.value })}>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.debtor} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, debtor: e.target.value })}>
                               <option value="">— Όλοι —</option>
                               {slipDebtors.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Μεταφορέας</label>
-                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.transporter} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, transporter: e.target.value, vehicle: '' })}>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.transporter} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, transporter: e.target.value, vehicle: '' })}>
                               <option value="">— Όλοι —</option>
                               {slipTransporters.map((p:string)=>(<option key={p} value={p}>{p}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Αρ. Οχήματος</label>
-                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.vehicle} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, vehicle: e.target.value })}>
+                            <select className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.vehicle} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, vehicle: e.target.value })}>
                               <option value="">— Όλα —</option>
                               {slipVehicles.map((v:string)=>(<option key={v} value={v}>{v}</option>))}
                             </select>
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Από</label>
-                            <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.from} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, from: e.target.value })} />
+                            <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.from} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, from: e.target.value })} />
                           </div>
                           <div className="flex flex-col">
                             <label className="text-xs text-gray-500 mb-1">Έως</label>
-                            <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={slipsFilter.to} onChange={(e:any)=> setSlipsFilter({ ...slipsFilter, to: e.target.value })} />
+                            <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white" value={effectiveSlipsFilter.to} onChange={(e:any)=> effectiveSetSlipsFilter({ ...effectiveSlipsFilter, to: e.target.value })} />
                           </div>
                         </div>
-                      </div>
+                        </div>
+                      )}
 
                       {/* Table */}
                       <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${hideChrome ? '' : 'max-h-[60vh] overflow-auto'}`}>
@@ -4473,13 +5816,10 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                     <div className="space-y-3">
                       {/* Header */}
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <div>
-                          <div className="text-base font-semibold">Ολοκληρωμένες</div>
-                          <div className="text-xs text-gray-600">Εγγραφές: <span className="font-medium">{rows.length}</span> • Σύνολο βαρών: <span className="font-medium">{totalWeight.toFixed(2)} tn</span></div>
-                        </div>
-                        <div className="flex items-center gap-2">
+                        <div />
+                        <div className="mt-2 flex justify-end gap-2">
                           <button className="px-3 py-2 text-sm rounded-lg border border-gray-300" onClick={()=> setCompletedFilter({ producer:'', project:'', transporter:'', vehicle:'', from:'', to:'' })}>Επαναφορά</button>
-                          <button className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white" onClick={()=>{
+                          <button className="px-3 py-2 text-sm rounded-lg bg-blue-600 text-white" onClick={() => {
                             const filename = `completed_${today()}_${Date.now()}.csv`;
                             const mapped = rows.map((r:any)=>({
                               unitDate: r.unitDate,
@@ -4678,7 +6018,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                   <label className="col-span-2">Χρεώστης
                     <select className="border p-1 w-full" value={weighData.debtor || ''} onChange={(e: any) => setWeighData({ ...weighData, debtor: e.target.value })}>
                       <option value="">— Επιλογή —</option>
-                      {DEBTOR_OPTIONS.map((d: string)=> (<option key={d} value={d}>{d}</option>))}
+                      {(Array.from(new Set(readStoredDebtors() || [])) as string[]).map((d: string)=> (<option key={d} value={d}>{d}</option>))}
                     </select>
                   </label>
                 </div>
@@ -4777,58 +6117,70 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                 <div className="col-span-2">
                   <div className="mt-3 font-medium">Καταχωρημένοι Μεταφορείς</div>
                   <div className="border rounded divide-y mt-1">
-                    {Array.from(new Set([...
-                      offlineTransporters,
+                    {Array.from(new Set([
+                      ...offlineTransporters,
                       ...transporterList,
-                    ])).map((nm:string)=> {
+                    ])).map((nm: string) => {
                       const isDefault = transporterList.includes(nm);
                       return (
                         <div key={nm} className="flex items-center justify-between px-2 py-1">
                           <div>
                             <span className="mr-2">{nm}</span>
-                            {isDefault && (<span className="text-[10px] text-gray-500 border px-1 rounded">default</span>)}
+                            {isDefault ? (
+                              <span className="text-[10px] text-gray-500 border px-1 rounded">default</span>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2">
-                            <button
-                              className={`text-blue-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
-                              disabled={isDefault}
-                              onClick={()=>{
-                                const next = window.prompt('Μετονομασία μεταφορέα', nm)?.trim();
-                                if (!next || next === nm) return;
-                                setOfflineTransporters((prev)=> {
-                                  const arr = prev.filter(x=> x !== nm);
-                                  return arr.includes(next) ? arr : [...arr, next];
-                                });
-                                setOfflineTransPlates((prev)=> {
-                                  const copy = { ...prev } as Record<string,string[]>;
-                                  if (copy[nm]) {
-                                    const plates = copy[nm];
-                                    delete copy[nm];
-                                    copy[next] = Array.from(new Set([...(copy[next]||[]), ...plates]));
-                                  }
-                                  return copy;
-                                });
-                                setAdminForm((f:any)=> ({
-                                  ...f,
-                                  plateTransporter: f.plateTransporter === nm ? next : f.plateTransporter,
-                                }));
-                              }}>Επεξεργασία</button>
-                            <button
-                              className={`text-red-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
-                              disabled={isDefault}
-                              onClick={()=>{
-                                if (!window.confirm(`Διαγραφή μεταφορέα "${nm}";`)) return;
-                                setOfflineTransporters((prev)=> prev.filter(x=> x !== nm));
-                                setOfflineTransPlates((prev)=> {
-                                  const copy = { ...prev } as Record<string,string[]>;
-                                  if (copy[nm]) delete copy[nm];
-                                  return copy;
-                                });
-                                setAdminForm((f:any)=> ({
-                                  ...f,
-                                  plateTransporter: f.plateTransporter === nm ? '' : f.plateTransporter,
-                                }));
-                              }}>Διαγραφή</button>
+                            <span>
+                              <button
+                                className={`text-blue-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                disabled={isDefault}
+                                onClick={() => {
+                                  const next = window.prompt('Μετονομασία μεταφορέα', nm)?.trim();
+                                  if (!next || next === nm) return;
+                                  setOfflineTransporters((prev) => {
+                                    const arr = prev.filter(x => x !== nm);
+                                    return arr.includes(next) ? arr : [...arr, next];
+                                  });
+                                  setOfflineTransPlates((prev) => {
+                                    const copy = { ...prev } as Record<string, string[]>;
+                                    if (copy[nm]) {
+                                      const plates = copy[nm];
+                                      delete copy[nm];
+                                      copy[next] = Array.from(new Set([...(copy[next] || []), ...plates]));
+                                    }
+                                    return copy;
+                                  });
+                                  setAdminForm((f: any) => ({
+                                    ...f,
+                                    plateTransporter: f.plateTransporter === nm ? next : f.plateTransporter,
+                                  }));
+                                }}
+                              >
+                                Επεξεργασία
+                              </button>
+                            </span>
+                            <span>
+                              <button
+                                className={`text-red-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                disabled={isDefault}
+                                onClick={() => {
+                                  if (!window.confirm(`Διαγραφή μεταφορέα "${nm}";`)) return;
+                                  setOfflineTransporters((prev) => prev.filter(x => x !== nm));
+                                  setOfflineTransPlates((prev) => {
+                                    const copy = { ...prev } as Record<string, string[]>;
+                                    if (copy[nm]) delete copy[nm];
+                                    return copy;
+                                  });
+                                  setAdminForm((f: any) => ({
+                                    ...f,
+                                    plateTransporter: f.plateTransporter === nm ? '' : f.plateTransporter,
+                                  }));
+                                }}
+                              >
+                                Διαγραφή
+                              </button>
+                            </span>
                           </div>
                         </div>
                       );
@@ -5056,21 +6408,15 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
               </div>
               {/* Debtors list with edit/delete */}
               <div className="mt-2 border rounded divide-y">
-                {Array.from(new Set([...
-                  offlineDebtors,
-                  ...DEBTOR_OPTIONS,
-                ])).map((nm:string)=> {
-                  const isDefault = DEBTOR_OPTIONS.includes(nm);
+                {Array.from(new Set(offlineDebtors || [])).map((nm:string)=> {
                   return (
                     <div key={nm} className="flex items-center justify-between px-2 py-1">
                       <div>
                         <span className="mr-2">{nm}</span>
-                        {isDefault && (<span className="text-[10px] text-gray-500 border px-1 rounded">default</span>)}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          className={`text-blue-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          disabled={isDefault}
+                          className={`text-blue-700 text-xs`}
                           onClick={()=>{
                             const next = window.prompt('Μετονομασία χρεώστη', nm)?.trim();
                             if (!next || next === nm) return;
@@ -5080,8 +6426,7 @@ function UnitTabletApp({ projects, transports, onReceive, onFinalize, onAddTrans
                             });
                           }}>Επεξεργασία</button>
                         <button
-                          className={`text-red-700 text-xs ${isDefault ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          disabled={isDefault}
+                          className={`text-red-700 text-xs`}
                           onClick={()=>{
                             if (!window.confirm(`Διαγραφή χρεώστη "${nm}";`)) return;
                             setOfflineDebtors((prev)=> prev.filter(x=> x !== nm));
@@ -5145,6 +6490,15 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
   const [prodOrderForm, setProdOrderForm] = useState<{ product: string; quantity: string }>({ product: '', quantity: '' });
   const refreshUnitProducts = () => { try { const raw = localStorage.getItem('iwm_unit_products'); const arr = raw ? JSON.parse(raw) : []; setUnitProducts(Array.isArray(arr) ? arr : []); } catch { setUnitProducts([]); } };
   const myProducer = 'Παραγωγός Α';
+  const [subscriptionPlanMobile, setSubscriptionPlanMobile] = useState<string>(() => {
+    try {
+      const k = `iwm_producer_subscription_${myProducer.replace(/\s+/g,'_')}`;
+      const v = localStorage.getItem(k);
+      if (v === 'premium' || v === 'basic' || v === 'free') return v === 'free' ? 'basic' : v;
+      if (v === '1') return 'premium';
+    } catch {}
+    return 'basic';
+  });
   const [reqFilter, setReqFilter] = useState<'all' | 'carrier' | 'producer'>('all');
 
   const req = A(transports).filter((t: any) => t.producer === myProducer && !t.approvedByProducer && !t.receivedByUnit);
@@ -5504,6 +6858,33 @@ function ProducerMobileApp({ projects, transports, onApprove, onReject, onReques
         </div>
       )}
 
+      {/* Subscription view for mobile */}
+      {tab === 'subscription' && (
+        <div className="p-4">
+          <div className="text-lg font-semibold mb-2">Συνδρομή</div>
+          <div className="mb-3">Επίλεξε πακέτο για {myProducer}:</div>
+          <div className="flex gap-3">
+            <button className={`flex-1 px-3 py-4 rounded border ${subscriptionPlanMobile === 'basic' ? 'bg-blue-50 border-blue-300' : ''}`} onClick={() => { const k = `iwm_producer_subscription_${myProducer.replace(/\s+/g,'_')}`; try { localStorage.setItem(k, 'basic'); } catch {} setSubscriptionPlanMobile('basic'); notify('Επιλέχθηκε Basic'); }}>Basic</button>
+            <button className={`flex-1 px-3 py-4 rounded border ${subscriptionPlanMobile === 'premium' ? 'bg-yellow-50 border-yellow-300' : ''}`} onClick={() => { const k = `iwm_producer_subscription_${myProducer.replace(/\s+/g,'_')}`; try { localStorage.setItem(k, 'premium'); } catch {} setSubscriptionPlanMobile('premium'); notify('Επιλέχθηκε Premium'); }}>Premium</button>
+          </div>
+          <div className="mt-3 text-sm">Τρέχουσα επιλογή: <span className="font-semibold">{subscriptionPlanMobile === 'premium' ? 'Premium' : 'Basic'}</span></div>
+          <div className="mt-3">
+            {subscriptionPlanMobile === 'basic' && (
+              <ul className="text-sm text-gray-700 list-disc list-inside">
+                <li>Βασικές λειτουργίες πλατφόρμας και εξαγωγές CSV</li>
+                <li>Ιδανικό για μικρές επιχειρήσεις και δοκιμή</li>
+              </ul>
+            )}
+            {subscriptionPlanMobile === 'premium' && (
+              <ul className="text-sm text-gray-700 list-disc list-inside">
+                <li>Προχωρημένα reports, scheduled exports και API</li>
+                <li>Προτεραιότητα υποστήριξης και οδηγίες ενσωμάτωσης</li>
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Αίτημα Κάδου (επιλογή τύπου) */}
       {reqTypeModal.open && (
         <Modal
@@ -5750,13 +7131,30 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
   const [reqFilter, setReqFilter] = useState<'all' | 'carrier' | 'producer'>('all');
   const [projTab, setProjTab] = useState<'all' | 'iwm' | 'external'>('all');
   const myTransporter = currentTransporter || 'Euroskip';
-  const tProjects = A(projects).filter((p: any) => p.transporter === myTransporter || p.creatorTransporter === myTransporter);
+  // Merge global projects and transporter-local external projects (mobile)
+  const tProjectsLocal = (() => {
+    try {
+      const raw = localStorage.getItem('iwm_transporter_external_projects');
+      const arr = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) {
+        const list = arr.filter((p: any) => p.creatorTransporter === myTransporter || p.transporter === myTransporter);
+        const seen = new Set();
+        return list.filter((p: any) => {
+          const k = `${p.producer}:::${p.projectName}`;
+          if (seen.has(k)) return false; seen.add(k); return true;
+        });
+      }
+    } catch {}
+    return [];
+  })();
+  const tProjects = [...A(projects).filter((p: any) => p.transporter === myTransporter || p.creatorTransporter === myTransporter), ...tProjectsLocal];
   // Vehicles per transporter (mobile)
   const [vehiclesMap, setVehiclesMap] = useState<Record<string, string[]>>(() => {
     try { const raw = localStorage.getItem('iwm_transporter_vehicles'); const obj = raw ? JSON.parse(raw) : {}; return obj && typeof obj === 'object' ? obj : {}; } catch { return {}; }
   });
   const myVehicles = (vehiclesMap[myTransporter] || []).filter(Boolean);
-  const mobileVehicleOptions = myVehicles.length ? myVehicles : VEH;
+  // Show only the vehicles from the transporter's profile; if none, show an empty list (no options except placeholder)
+  const mobileVehicleOptions = myVehicles.length ? myVehicles : [];
   React.useEffect(() => {
     try { const raw = localStorage.getItem('iwm_transporter_vehicles'); const obj = raw ? JSON.parse(raw) : {}; if (obj && typeof obj === 'object') setVehiclesMap(obj); } catch {}
   }, [currentTransporter]);
@@ -5774,7 +7172,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
   const handleNew = () => {
     if (!producer || !project || !unit || !vehicle) return;
     const pr = A(projects).find((p: any) => p.producer === producer && p.projectName === project);
-    onAddTransport({ id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true });
+  onAddTransport({ id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true, createdByTransporterMobile: true });
     addNotif && addNotif('Νέο Αίτημα Μεταφοράς (Μεταφορέα)', `${producer} / ${project}`, { page: 'producer', tab: 'aitimata' });
     // After creating via 'Αίτημα', navigate to Requests tab
     setTab('requests');
@@ -5784,7 +7182,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
   const handleNewWithSign = () => {
     if (!producer || !project || !unit || !vehicle) return;
     const pr = A(projects).find((p: any) => p.producer === producer && p.projectName === project);
-    const t = { id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true };
+  const t = { id: gid(), producer, project, projectId: pr?.id, address: pr?.address || '-', unit, vehicle, date: mDate || today(), time, managerName: pr?.managerName || '', managerPhone: pr?.managerPhone || '', status: 'Αναμονή αποδοχής παραγωγού', approvedByProducer: false, receivedByUnit: false, fromProducer: false, isNew: true, createdByTransporterMobile: true };
     onAddTransport(t);
     addNotif && addNotif('Νέο Αίτημα Μεταφοράς (Μεταφορέα)', `${producer} / ${project}`, { page: 'producer', tab: 'aitimata' });
   // switch to Transfers tab (open) on mobile so user sees the created transport
@@ -5814,7 +7212,16 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
       start: today(),
       end: today(),
     };
-    onAddProject && onAddProject(obj);
+    // Persist to transporter-local external projects only (not global projects)
+    try {
+      const raw = localStorage.getItem('iwm_transporter_external_projects');
+      const arr = raw ? JSON.parse(raw) : [];
+      const next = Array.isArray(arr) ? arr : [];
+      const key = `${obj.producer}:::${obj.projectName}`;
+      const exists = next.some((p: any) => (p.producer && p.projectName) && (`${p.producer}:::${p.projectName}`) === key);
+      if (!exists) next.push(obj);
+      localStorage.setItem('iwm_transporter_external_projects', JSON.stringify(next));
+    } catch {}
     setAddExternalOpen(false);
     setExtForm({ producer: '', projectName: '', address: '', unit: '', managerName: '', managerPhone: '' } as any);
     setTab('projects');
@@ -5891,12 +7298,17 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
             </div>
             <select value={producer} onChange={(e: any) => { setProducer(e.target.value); setProject(''); setUnit(''); }} className="border p-1 w-full rounded">
               <option value="">Επιλογή Παραγωγού</option>
-              {[...new Set(A(projects).map((p: any) => p.producer))].map((p: string) => (<option key={p} value={p}>{p}</option>))}
+              {(() => {
+                const central = A(projects).map((p: any) => p.producer || '').filter(Boolean);
+                const transportLocal = tProjectsLocal.map((p: any) => p.producer || '').filter(Boolean);
+                const merged = Array.from(new Set([...central, ...transportLocal]));
+                return merged.map((p: string) => (<option key={p} value={p}>{p}</option>));
+              })()}
             </select>
             <select value={project} onChange={(e: any) => {
               const val = e.target.value;
               setProject(val);
-              const pr = A(projects).find((x: any) => x.producer === producer && x.projectName === val);
+              const pr = A(projects).find((x: any) => x.producer === producer && x.projectName === val) || (tProjectsLocal.find((x: any) => x.producer === producer && x.projectName === val));
               const u = pr?.unit;
               setUnit(u || '');
               setMAddress(pr?.address || '');
@@ -5904,9 +7316,12 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
               setMManagerPhone(pr?.managerPhone || '');
             }} className="border p-1 w-full rounded">
               <option value="">Επιλογή Έργου</option>
-              {A(projects)
-                .filter((p: any) => p.producer === producer && !p.offPlatformTransporter)
-                .map((pr: any) => (<option key={pr.id} value={pr.projectName}>{pr.projectName}</option>))}
+              {(() => {
+                const central = A(projects).filter((p: any) => p.producer === producer && !p.offPlatformTransporter).map((p: any) => p.projectName);
+                const transportLocal = tProjectsLocal.filter((p: any) => p.producer === producer).map((p: any) => p.projectName);
+                const merged = Array.from(new Set([...(central || []), ...(transportLocal || [])]));
+                return merged.map((name: string, idx: number) => (<option key={`${producer}:::${name}:::${idx}`} value={name}>{name}</option>));
+              })()}
             </select>
             <input value={mAddress} readOnly placeholder="Διεύθυνση" className="border p-1 w-full rounded bg-gray-100" />
             <input value={unit} readOnly placeholder="Μονάδα" className="border p-1 w-full rounded bg-gray-100" />
@@ -5914,7 +7329,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
             <input value={mManagerPhone} readOnly placeholder="Τηλέφωνο" className="border p-1 w-full rounded bg-gray-100" />
             <select value={vehicle} onChange={(e: any) => setVehicle(e.target.value)} className="border p-1 w-full rounded">
               <option value="">Επιλογή Οχήματος</option>
-              {mobileVehicleOptions.map((v: string) => (<option key={v} value={v}>{v}</option>))}
+              {mobileVehicleOptions.length > 0 && mobileVehicleOptions.map((v: string) => (<option key={v} value={v}>{v}</option>))}
             </select>
             <input type="date" value={mDate} readOnly className="border p-1 w-full rounded bg-gray-100" />
             <input type="time" value={time} readOnly className="border p-1 w-full rounded bg-gray-100" />
@@ -5960,7 +7375,8 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
                   </label>
                   <label className="col-span-2">Όχημα
                     <select className="border p-1 w-full" value={mobileSignModal.vehicle} onChange={(e: any) => setMobileSignModal((m: any) => ({ ...m, vehicle: e.target.value }))}>
-                      {mobileVehicleOptions.map((pl: string) => (<option key={pl} value={pl}>{pl}</option>))}
+                      <option value="">Επιλογή Οχήματος</option>
+                      {mobileVehicleOptions.length > 0 && mobileVehicleOptions.map((pl: string) => (<option key={pl} value={pl}>{pl}</option>))}
                     </select>
                   </label>
                 </div>
@@ -6339,6 +7755,7 @@ function EcoApp({ projects, transports, onAddTransport, notifications, onJump, o
         </div>
       </Modal>
     ))}
+    
     </>
   );
 }
@@ -6357,7 +7774,8 @@ function MobileTransfers({ pending = [], open, delivery = [], done, onPreviewPdf
 
   const filteredPending = A(pending);
   const filteredOpen = open; // keep open list simple on mobile
-  const filteredDelivery = A(delivery);
+  // Exclude transports created by transporter mobile from the delivery list (don't show waiting-for-unit box for those)
+  const filteredDelivery = A(delivery).filter((t: any) => !t.createdByTransporterMobile);
 
   const counts = { pending: filteredPending.length, open: filteredOpen.length, delivery: filteredDelivery.length };
 
@@ -7040,15 +8458,15 @@ export default function App() {
             <Btn className={producerMode === 'web' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setProducerMode('web')}>🌐 Web</Btn>
             <Btn className={producerMode === 'mobile' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setProducerMode('mobile')}>📱 Mobile</Btn>
           </div>
-              {producerMode === 'web' ? (
-            selectedProject ? (
-              <ProjectDetails project={selectedProject} transports={transports} onBack={() => setSelectedProject(null)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} addNotif={addNotif} />
+            {selectedProject ? (
+              <ProjectDetails project={selectedProject} transports={transports} onBack={() => setSelectedProject(null)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} addNotif={addNotif} onUpdateProject={(id: string, updates: any) => setProjects((prev: any[]) => prev.map((p: any) => p.id === id ? { ...p, ...updates } : p))} />
             ) : (
-                  <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
-            )
-          ) : (
-              <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} onCancelRequest={cancelRequest} onDismissRequest={dismissRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onOpenProject={(p: any) => setSelectedProject(p)} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
-          )}
+              producerMode === 'web' ? (
+                <Producer projects={projects} transports={transports} onAddProject={addProject} onApproveTransport={approveTransport} onRejectTransport={rejectTransport} onOpenProject={(p: any) => setSelectedProject(p)} onRequestTransfer={requestTransfer} onCancelRequest={cancelRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
+              ) : (
+                <ProducerMobileFrame projects={projects} transports={transports} onApprove={approveTransport} onReject={rejectTransport} onRequest={requestTransfer} onCancelRequest={cancelRequest} onDismissRequest={dismissRequest} notifications={notifications} onJump={jumpByNotif} deepLink={deepLink} onOpenProject={(p: any) => setSelectedProject(p)} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} />
+              )
+            )}
         </div>
       )}
 
@@ -7069,13 +8487,15 @@ export default function App() {
       {page === 'unit' && (
             <div>
               <div className="flex gap-3 mb-3">
-                <Btn className={unitMode === 'web' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setUnitMode('web')}>🌐 Web</Btn>
+                <Btn className={unitMode === 'webAdmin' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setUnitMode('webAdmin')}>🌐 Web Admin</Btn>
+                <Btn className={unitMode === 'web' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setUnitMode('web')}>🌐 Web Ζυγιστικό</Btn>
                 <Btn className={unitMode === 'tablet' ? 'bg-blue-600 text-white' : 'bg-gray-100'} onClick={() => setUnitMode('tablet')}>📱 Tablet</Btn>
               </div>
-              {unitMode === 'web' ? (
-                <Unit projects={projects} transports={transports} onAcceptAgreement={acceptAgreement} onRejectAgreement={rejectAgreement} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} notifications={notifications} onJump={jumpByNotif} onOpenProject={(p: any) => { setSelectedProject(p); setPage('projectView'); }} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} onClearTransNewWhere={clearTransNewWhere} />
-              ) : (
+              {unitMode === 'tablet' ? (
                 <UnitTabletFrame projects={projects} transports={transports} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} onAddTransport={addTransport} addNotif={addNotif} />
+              ) : (
+                // Render the same Unit web UI for both Web Admin and Web Ζυγιστικό
+                <Unit projects={projects} transports={transports} onAcceptAgreement={acceptAgreement} onRejectAgreement={rejectAgreement} onReceive={unitReceive} onFinalize={finalizeUnitDelivery} notifications={notifications} onJump={jumpByNotif} onOpenProject={(p: any) => { setSelectedProject(p); setPage('projectView'); }} deepLink={deepLink} onClearTransNew={clearTransNew} onClearProjectsNew={clearProjectsNew} onClearTransNewWhere={clearTransNewWhere} adminOnly={unitMode === 'webAdmin'} />
               )}
             </div>
       )}
